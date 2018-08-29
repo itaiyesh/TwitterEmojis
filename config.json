@@ -1,0 +1,53 @@
+{
+    "name": "Tweets_Sentiment2",
+    "cuda": true,
+    "gpu": 0,
+    "data_loader": {
+        "data_dir": "datasets/",
+        "batch_size": 64,
+        "shuffle": true,
+        "num_workers" : 7
+    },
+    "validation": {
+        "validation_split": 0.01,
+        "shuffle": true
+    },
+
+    "lr_scheduler_type": "ExponentialLR",
+    "lr_scheduler_freq": 1,
+    "lr_scheduler": {
+            "gamma": 0.8685113737513527
+    },
+ 
+    "optimizer_type": "Adam",
+    "optimizer": {
+        "lr": 0.001,
+        "weight_decay": 0
+    },
+    "loss": "my_loss",
+    "metrics": ["my_metric", "my_metric2"],
+    "trainer": {
+        "epochs": 1000,
+        "save_dir": "saved/",
+        "save_freq": 1,
+        "verbosity": 2,
+        "monitor": "val_loss",
+        "monitor_mode": "min"
+    },
+    "arch": "StackedCRNNClassifier",
+    "model": {
+
+    },
+
+    "nembedding": 300,
+    "clip": 5.0,
+    "cnn": {
+        "kernel_sizes":  [[5,300], [5,256]],
+        "nkernels": [256, 128]
+        },
+    "rnn": {
+        "nhidden": 128,
+        "nlayers": 2,
+        "dropout": 0.5
+    }
+}
