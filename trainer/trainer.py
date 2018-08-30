@@ -56,7 +56,8 @@ class Trainer(BaseTrainer):
 
         total_loss = 0
         total_metrics = np.zeros(len(self.metrics))
-        for batch_idx, (data, target) in enumerate(self.data_loader):
+        from tqdm import tqdm
+        for batch_idx, (data, target) in tqdm(enumerate(self.data_loader)):
             data, target = self._to_tensor(data, target)
 
             self.optimizer.zero_grad()

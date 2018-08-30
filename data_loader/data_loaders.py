@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from torchvision import datasets, transforms
 from base import BaseDataLoader
+from torch.utils.data.dataloader import default_collate
 
 
 class MnistDataLoader(BaseDataLoader):
@@ -19,5 +20,5 @@ class MnistDataLoader(BaseDataLoader):
 
 
 class TweetsDataLoader(BaseDataLoader):
-    def __init__(self, dataset, config):
-        super(TweetsDataLoader, self).__init__(dataset, config)
+    def __init__(self, dataset, config, collate_fn = default_collate):
+        super(TweetsDataLoader, self).__init__(dataset, config, collate_fn)

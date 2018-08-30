@@ -5,7 +5,8 @@ import logging
 import torch
 import torch.optim as optim
 from utils.util import ensure_dir
-
+import time
+import datetime
 
 class BaseTrainer:
     """
@@ -108,10 +109,16 @@ class BaseTrainer:
             'monitor_best': self.monitor_best,
             'config': self.config
         }
-        filename = os.path.join(self.checkpoint_dir, 'checkpoint-epoch{:03d}-loss-{:.4f}.pth.tar'
-                                .format(epoch, log['loss']))
+        filename = os.path.join(self.checkpoint_dir,
+                                datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d-%H.%M.%S')
+                                +'checkpoint-epoch{:03d}-loss-{:.4f}.pth.tar'.format(epoch, log['loss']))
         torch.save(state, filename)
         if save_best:
+            try:
+                os.remove(os.path.join(self.checkpoint_dir, 'model_best.pth.tar'))
+            except:
+                pass
+
             os.rename(filename, os.path.join(self.checkpoint_dir, 'model_best.pth.tar'))
             self.logger.info("Saving current best: {} ...".format('model_best.pth.tar'))
         else:

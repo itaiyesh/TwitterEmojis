@@ -5,12 +5,12 @@
     "data_loader": {
         "data_dir": "datasets/",
         "batch_size": 64,
-        "shuffle": true,
+        "shuffle": false,
         "num_workers" : 7
     },
     "validation": {
         "validation_split": 0.01,
-        "shuffle": true
+        "shuffle": false
     },
 
     "lr_scheduler_type": "ExponentialLR",
