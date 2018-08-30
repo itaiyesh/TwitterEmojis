@@ -28,6 +28,9 @@ class SVM(BaseModel):
         self.l1 = nn.Linear(vocab_size, label_size)
 
     def forward(self, x):
+        # print(x.size())
+        # print(self.l1(x).size())
+        # exit(0)
         return self.l1(x)
         # x = F.relu(F.max_pool2d(self.conv1(x), 2))
         # x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))

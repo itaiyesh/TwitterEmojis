@@ -22,7 +22,7 @@ class Trainer(BaseTrainer):
         self.log_step = int(np.sqrt(self.batch_size))
 
     def _to_tensor(self, data, target):
-        data, target = torch.FloatTensor(data), torch.LongTensor(target)
+        data, target = torch.FloatTensor(data), torch.FloatTensor(target)
         if self.with_cuda:
             data, target = data.to(self.gpu), target.to(self.gpu)
         return data, target

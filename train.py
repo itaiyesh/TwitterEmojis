@@ -71,7 +71,7 @@ if __name__ == '__main__':
     elif args.config is not None:
         config = json.load(open(args.config))
         path = os.path.join(config['trainer']['save_dir'], config['name'])
-        assert not os.path.exists(path), "Path {} already exists!".format(path)
+        # assert not os.path.exists(path), "Path {} already exists!".format(path)
     assert config is not None
 
     main(config, args.resume)
