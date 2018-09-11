@@ -1,31 +1,32 @@
 {
-    "name": "Tweets_Sentiment2",
+    "name": "run1",
     "cuda": true,
     "gpu": 0,
     "data_loader": {
         "data_dir": "datasets/",
-        "batch_size": 64,
+        "batch_size": 32,
         "shuffle": false,
-        "num_workers" : 7
+        "num_workers" : 6
     },
     "validation": {
-        "validation_split": 0.01,
+        "validation_split": 0.1,
         "shuffle": false
     },
 
     "lr_scheduler_type": "ExponentialLR",
-    "lr_scheduler_freq": 1,
+    "lr_scheduler_freq": 5,
     "lr_scheduler": {
-            "gamma": 0.8685113737513527
+            "gamma": 0.08685113737513527
     },
- 
+
     "optimizer_type": "Adam",
     "optimizer": {
         "lr": 0.001,
         "weight_decay": 0
     },
-    "loss": "my_loss",
-    "metrics": ["my_metric", "my_metric2"],
+
+    "loss": "my_loss2",
+    "metrics": ["my_metric", "my_metric2", "accuracy"],
     "trainer": {
         "epochs": 1000,
         "save_dir": "saved/",
@@ -34,9 +35,37 @@
         "monitor": "val_loss",
         "monitor_mode": "min"
     },
-    "arch": "StackedCRNNClassifier",
-    "model": {
+    "mongo" : {
+        "ip": "192.168.14.124",
+        "port" : 27017,
+        "db": "twitterdb",
+        "collection": "aug7"
+    },
 
+    "vocab_size" : 32768,
+
+    "vocab_file" : "datasets/processed/vocab.h5",
+    "labels_file": "datasets/processed/labels.h5",
+    "raw_file": "datasets/raw/tweets.h5",
+    "raw_shuffled": "datasets/raw/tweets_shuffled.h5",
+    "sequence_limit": 15,
+    "models": {
+      "SVM" : {
+        "dataset": "datasets/processed/tweets_bow.h5"
+      },
+
+      "LSTM": {
+        "dataset": "datasets/processed/tweets_seq.h5",
+          "hidden_dim": 250,
+          "embedding_dim": 1000
+      },
+
+        "CNN": {
+            "dataset": "datasets/processed/tweets_seq.h5"
+        },
+        "StackedCRNN": {
+            "dataset": "datasets/processed/tweets_seq.h5"
+        }
     },
 
     "nembedding": 300,

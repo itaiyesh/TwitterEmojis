@@ -4,7 +4,7 @@ from torchvision import datasets, transforms
 from base import BaseDataLoader
 from torch.utils.data.dataloader import default_collate
 
-
+#TODO: Remove this class
 class MnistDataLoader(BaseDataLoader):
     """
     MNIST data loading demo using BaseDataLoader

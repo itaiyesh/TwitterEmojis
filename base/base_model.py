@@ -12,6 +12,12 @@ class BaseModel(nn.Module):
         self.config = config
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    """
+    An action to be done prior to a batch evaluation
+    """
+    def on_batch(self):
+        pass
+
     def forward(self, *input):
         """
         Forward pass logic
