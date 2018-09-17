@@ -1,5 +1,5 @@
 from datasets import HDF5Dataset
-from preprocessing import *
+from prepare_data import *
 from model import *
 if __name__ == '__main__':
 
@@ -61,5 +61,5 @@ if __name__ == '__main__':
         output = model(output)
 
         array = output.data.numpy()
-        emotion = list(index_to_emotion.keys())[np.argmax(array)]
+        emotion = list(idx2emoji.keys())[np.argmax(array)]
         print(emotion)

@@ -2,7 +2,12 @@ import numpy as np
 import torch
 from base import BaseTrainer
 from tqdm import tqdm
-from preprocessing import *
+from prepare_data import *
+from base import BaseTrainer
+from tqdm import tqdm
+from prepare_data import *
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import precision_recall_fscore_support as score
 
 
 class Trainer(BaseTrainer):
@@ -13,6 +18,7 @@ class Trainer(BaseTrainer):
         Inherited from BaseTrainer.
         self.optimizer is by default handled by BaseTrainer based on config.
     """
+
     def __init__(self, model, loss, metrics, resume, config,
                  data_loader, valid_data_loader=None, train_logger=None):
         super(Trainer, self).__init__(model, loss, metrics, resume, config, train_logger)
@@ -24,10 +30,22 @@ class Trainer(BaseTrainer):
         self.log_step = int(np.sqrt(self.batch_size))
 
     def _to_tensor(self, data, target):
+        with_lengths = False
+        # Checking whether data is a tuple of data+lengths (for padding)
+        if isinstance(data, tuple):
+            (data, lengths), target = (torch.LongTensor(data[0]), data[1]), torch.LongTensor(target)
+            with_lengths = True
+        else:
+            data, target = torch.LongTensor(data), torch.LongTensor(target)
+
         data, target = torch.LongTensor(data), torch.LongTensor(target)
         if self.with_cuda:
             data, target = data.to(self.gpu), target.to(self.gpu)
-        return data, target
+
+        if with_lengths:
+            return (data, lengths), target
+        else:
+            return data, target
 
     def _eval_metrics(self, output, target):
         acc_metrics = np.zeros(len(self.metrics))
@@ -38,11 +56,46 @@ class Trainer(BaseTrainer):
         #     acc_metrics[i] += metric(output, target)
         # return acc_metrics
 
-        #Specific handling of loss function
+        # Specific handling of loss function
         for i, metric in enumerate(self.metrics):
             acc_metrics[i] += metric(output, target)
         return acc_metrics
 
+    # TODO: Remove. this is for debug only
+    def _predict(self, text, word_to_ix):
+
+        vocab = Vocabulary(debug = True)
+
+        config = self.config
+        is_bow = config['is_bow']
+        padding = config['padding']
+
+        seq_limit = self.config['sequence_limit']
+        if is_bow:
+            seq = make_bow_vector(vocab.clean(text), word_to_ix).numpy()
+        else:
+            seq = make_seq_vector(vocab.clean(text), word_to_ix, seq_limit).numpy()
+        v = np.repeat([seq], self.model.batch_size, axis=0)
+        if padding:
+            f = np.nonzero(seq)[0][-1] + 1
+            l = np.repeat(f, self.model.batch_size, axis=0)
+            v = torch.from_numpy(v).long()
+            v = v.to(self.gpu)
+            # print("batch size")
+            # print("v: {} l: {}".format(v.shape,l.shape))
+            # print("v: {} l: {}".format(v,l))
+
+            output = self.model((v, l))
+
+        else:
+            v = torch.from_numpy(v).long()
+            v = v.to(self.gpu)
+            output = self.model(v)
+
+        array = output.cpu().data.numpy()
+        array = array[0]
+        indices = array.argsort()[-3:][::-1]
+        return ", ".join([list(idx2emoji.keys())[i] for i in indices])
 
     def _train_epoch(self, epoch):
         """
@@ -65,7 +118,7 @@ class Trainer(BaseTrainer):
         total_loss = 0
         total_metrics = np.zeros(len(self.metrics))
 
-        #TODO: Remove, debug
+        # TODO: Remove, debug
         vocab_file = 'datasets/processed/vocab.h5'
         word_to_ix = {}
         with h5py.File(vocab_file, 'r') as h5f:
@@ -86,7 +139,7 @@ class Trainer(BaseTrainer):
             # if batch_idx == 5:
             #     print("output: {}\nReal: {}\nLoss: {}".format(output, target, loss))
             #     exit(0)
-            loss.backward() # Added retain =true
+            loss.backward()  # Added retain =true
             self.optimizer.step()
 
             total_loss += loss.item()
@@ -101,63 +154,25 @@ class Trainer(BaseTrainer):
                     loss.item()))
                 # print(target)
 
-        #TODO: Remove this
-        is_bow = False
-        text1 = "I'm so hungry. this looks yummy!!"
-        seq_limit = self.config['sequence_limit']
-        if is_bow:
-            seq = make_bow_vector(clean(text1), word_to_ix).numpy()
-        else:
-            seq = make_seq_vector(clean(text1), word_to_ix, seq_limit).numpy()
-        v = np.repeat([seq], self.model.batch_size, axis=0)
-        v = torch.from_numpy(v).long()  # .cpu()
-        v = v.to(self.gpu)
-        output = self.model(v)
-        array = output.cpu().data.numpy()
-        array = array[0]
-        indices = array.argsort()[-3:][::-1]
-        emotions1 = ", ".join([list(index_to_emotion.keys())[i] for i in indices])
+        texts = ["mmmm....that's very interesting...",
+                 "This is shit!!",
+                 "This is the shit!!!",
+                 "WOW can't believe it!!"
+                 ]
 
-        text2 = "I am so sad. I've been crying all day"
-        if is_bow:
-            seq = make_bow_vector(clean(text2), word_to_ix).numpy()
-        else:
-            seq = make_seq_vector(clean(text2), word_to_ix,seq_limit).numpy()
-        v = np.repeat([seq], self.model.batch_size, axis=0)
-        v = torch.from_numpy(v).long()  # .cpu()
-        v = v.to(self.gpu)
-        output = self.model(v)
-        array = output.cpu().data.numpy()
-        array = array[0]
-        indices = array.argsort()[-3:][::-1]
-        emotions2 = ", ".join([list(index_to_emotion.keys())[i] for i in indices])
-
-
-        text3 = "mmm...I wonder what I would do..."
-        if is_bow:
-            seq = make_bow_vector(clean(text3), word_to_ix).numpy()
-        else:
-            seq = make_seq_vector(clean(text3), word_to_ix,seq_limit).numpy()
-        v = np.repeat([seq], self.model.batch_size, axis=0)
-        v = torch.from_numpy(v).long()  # .cpu()
-        v = v.to(self.gpu)
-        output = self.model(v)
-        array = output.cpu().data.numpy()
-        array = array[0]
-        indices = array.argsort()[-3:][::-1]
-        emotions3 = ", ".join([list(index_to_emotion.keys())[i] for i in indices])
+        # predictions = {text: self._predict(text, word_to_ix) for text in texts}
+        predictions = {}
 
         log = {
+            # Bug: not all batches are same size (i.e. last one.)
+            # This should be a weighted mean instead unless drop_last flag is True on dataloader
             'loss': total_loss / len(self.data_loader),
-            'metrics': (total_metrics / len(self.data_loader)).tolist(),
-            text1: emotions1,
-            text2: emotions2,
-            text3: emotions3
+            'metrics': (total_metrics / len(self.data_loader)).tolist()
         }
 
         if self.valid:
             val_log = self._valid_epoch()
-            log = {**log, **val_log}
+            log = {**log, **val_log, **predictions}
 
         return log
 
@@ -190,3 +205,62 @@ class Trainer(BaseTrainer):
             'val_loss': total_val_loss / len(self.valid_data_loader),
             'val_metrics': (total_val_metrics / len(self.valid_data_loader)).tolist()
         }
+
+
+class TraditionalTrainer:
+
+    def __init__(self, model, config, data_loader, valid_data_loader=None, train_logger=None):
+        super(TraditionalTrainer, self).__init__()
+        self.model = model
+        self.config = config
+        self.batch_size = data_loader.batch_size
+        self.data_loader = data_loader
+        self.valid_data_loader = valid_data_loader
+        self.valid = True if self.valid_data_loader is not None else False
+        self.log_step = int(np.sqrt(self.batch_size))
+        self.start_epoch = 1
+        self.epochs = config['trainer']['epochs']
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def train(self):
+        for epoch in range(self.start_epoch, self.epochs + 1):
+            self._train(epoch)
+            self._validate(epoch)
+
+    def _to_numpy(self, data, target):
+        return data.cpu().data.numpy().astype(int) ,target.cpu().data.numpy().squeeze().astype(int)
+
+    def _train(self, epoch):
+        for batch_idx, (data, target) in tqdm(enumerate(self.data_loader)):
+            data, target = self._to_numpy(data, target)
+            # print("Data: {}".format(np.argmax(data[0])))
+            # print("target: {}".format(target.squeeze().shape))
+            self.model.partial_fit(data, target)
+
+            if  batch_idx % self.log_step == 0:
+                self.logger.info('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
+                    epoch,
+                    batch_idx * self.data_loader.batch_size,
+                    len(self.data_loader) * self.data_loader.batch_size,
+                    100.0 * batch_idx / len(self.data_loader)))
+
+    def _validate(self, epoch):
+        accuracy = 0
+        for batch_idx, (data, target) in enumerate(self.valid_data_loader):
+            data, target = self._to_numpy(data, target)
+
+            predicted = self.model.predict(data)
+
+            # precision, recall, fscore, support = score(target, predicted)
+            # print('precision: {}'.format(precision))
+            # print('recall: {}'.format(recall))
+            # print('fscore: {}'.format(fscore))
+            # print('support: {}'.format(support))
+
+            accuracy += accuracy_score(target, predicted)
+
+
+        self.logger.info('accuracy {}'.format(accuracy / len(self.valid_data_loader)))
+
+
+

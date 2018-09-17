@@ -6,7 +6,6 @@ def accuracy(y_input, y_target):
     # print("Input: {}".format(y_input.shape))
     # print("Output: {}".format(y_target.shape))
     y_target = np.squeeze(y_target)
-
     predicted = [np.argmax(label) for label in y_input]
 
     # print("Predicted: {} \ny_target: {} \nEqual: {} \nlen: {} \nequal/len: {}".format(

@@ -1,82 +1,148 @@
 {
-    "name": "run1",
-    "cuda": true,
-    "gpu": 0,
-    "data_loader": {
-        "data_dir": "datasets/",
-        "batch_size": 32,
-        "shuffle": false,
-        "num_workers" : 6
-    },
-    "validation": {
-        "validation_split": 0.1,
-        "shuffle": false
-    },
+  "_comment_": "These should be part of execution",
+  "model_name": "LSTM2Layer",
+  "word2vec_NO": "google_news",
+  "_end_of_comment": "These should be part of execution",
 
-    "lr_scheduler_type": "ExponentialLR",
-    "lr_scheduler_freq": 5,
-    "lr_scheduler": {
-            "gamma": 0.08685113737513527
-    },
+  "_comment_": "These two should be removed. Debug only",
+  "padding": true,
+  "is_bow": false,
+  "_end_of_comment": "These two should be removed. Debug only",
 
-    "optimizer_type": "Adam",
-    "optimizer": {
-        "lr": 0.001,
-        "weight_decay": 0
-    },
+  "name": "run1",
+  "cuda": true,
+  "gpu": 0,
+  "data_loader": {
+    "data_dir": "datasets/",
+    "batch_size": 32,
+    "shuffle": false,
+    "num_workers": 2
+  },
+  "validation": {
+    "validation_split": 0.1,
+    "shuffle": false
+  },
+  "lr_scheduler_type": "ExponentialLR",
+  "lr_scheduler_freq": 20,
+  "lr_scheduler": {
+    "gamma": 0.08685113737513527
+  },
+  "optimizer_type": "Adam",
+  "optimizer": {
+    "lr": 0.001,
+    "weight_decay": 0
+  },
+  "loss": "nlll",
+  "metrics": [
+    "my_metric",
+    "my_metric2",
+    "accuracy"
+  ],
+  "trainer": {
+    "epochs": 1000,
+    "save_dir": "saved/",
+    "save_freq": 1,
+    "verbosity": 2,
+    "monitor": "val_loss",
+    "monitor_mode": "min"
+  },
+  "sampling": {
+    "vocab_min_df": 0.00008,
+    "vocab_max_df": 0.9,
+    "collect_data": false,
+    "_comment": "use sample_limit or class_limit here",
+    "vocab_sample_limit": 10000,
+    "class_limit": 100000,
+    "sample_limit": 27000000
+  },
+  "mongo": {
+    "ip": "192.168.14.124",
+    "port": 27017,
+    "db": "twitterdb",
+    "collection": "aug7"
+  },
+  "tfidf_limit": 32768,
+  "frequent_words_limit" : 128,
+  "vocab_file": "datasets/processed/vocab.h5",
+  "labels_file": "datasets/processed/labels.h5",
+  "raw_file": "datasets/raw/tweets.h5",
+  "processed_sequence": "datasets/processed/tweets_seq.h5",
+  "processed_bow": "datasets/processed/tweets_bow.h5",
+  "sequence_limit": 20,
 
-    "loss": "my_loss2",
-    "metrics": ["my_metric", "my_metric2", "accuracy"],
-    "trainer": {
-        "epochs": 1000,
-        "save_dir": "saved/",
-        "save_freq": 1,
-        "verbosity": 2,
-        "monitor": "val_loss",
-        "monitor_mode": "min"
-    },
-    "mongo" : {
-        "ip": "192.168.14.124",
-        "port" : 27017,
-        "db": "twitterdb",
-        "collection": "aug7"
-    },
+  "word2vec_files": {
+    "google_news": "C:/Users/iyeshuru/Downloads/GoogleNews-vectors-negative300.bin.gz",
+    "twitter": "C:/Users/iyeshuru/Downloads/word2vec_twitter_model.bin"
+  },
 
-    "vocab_size" : 32768,
+  "models": {
+    "NaiveBayes": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "is_traditional": true,
+      "pad_input": false
+    },
+    "SVM": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "pad_input": false
+    },
+    "LSTM": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": false
+    },
+    "LSTM2": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": true
+    },
+      "LSTM2Layer": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": true
+    },
+    "DeepNeuralDecisionForest": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": false
+    },
+    "CNN": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": false
+    },
+    "CNN2": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": true
+    },
+    "StackedCRNN": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": true,
 
-    "vocab_file" : "datasets/processed/vocab.h5",
-    "labels_file": "datasets/processed/labels.h5",
-    "raw_file": "datasets/raw/tweets.h5",
-    "raw_shuffled": "datasets/raw/tweets_shuffled.h5",
-    "sequence_limit": 15,
-    "models": {
-      "SVM" : {
-        "dataset": "datasets/processed/tweets_bow.h5"
+
+      "nembedding": 300,
+      "clip": 5.0,
+      "cnn": {
+        "kernel_sizes": [
+          [
+            5,
+            300
+          ],
+          [
+            5,
+            256
+          ]
+        ],
+        "nkernels": [
+          256,
+          128
+        ]
       },
-
-      "LSTM": {
-        "dataset": "datasets/processed/tweets_seq.h5",
-          "hidden_dim": 250,
-          "embedding_dim": 1000
-      },
-
-        "CNN": {
-            "dataset": "datasets/processed/tweets_seq.h5"
-        },
-        "StackedCRNN": {
-            "dataset": "datasets/processed/tweets_seq.h5"
-        }
-    },
-
-    "nembedding": 300,
-    "clip": 5.0,
-    "cnn": {
-        "kernel_sizes":  [[5,300], [5,256]],
-        "nkernels": [256, 128]
-        },
-    "rnn": {
+      "rnn": {
         "nhidden": 128,
         "nlayers": 2,
         "dropout": 0.5
+      }
     }
+  }
 }
