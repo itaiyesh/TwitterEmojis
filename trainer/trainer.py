@@ -62,40 +62,40 @@ class Trainer(BaseTrainer):
         return acc_metrics
 
     # TODO: Remove. this is for debug only
-    def _predict(self, text, word_to_ix):
-
-        vocab = Vocabulary(debug = True)
-
-        config = self.config
-        is_bow = config['is_bow']
-        padding = config['padding']
-
-        seq_limit = self.config['sequence_limit']
-        if is_bow:
-            seq = make_bow_vector(vocab.clean(text), word_to_ix).numpy()
-        else:
-            seq = make_seq_vector(vocab.clean(text), word_to_ix, seq_limit).numpy()
-        v = np.repeat([seq], self.model.batch_size, axis=0)
-        if padding:
-            f = np.nonzero(seq)[0][-1] + 1
-            l = np.repeat(f, self.model.batch_size, axis=0)
-            v = torch.from_numpy(v).long()
-            v = v.to(self.gpu)
-            # print("batch size")
-            # print("v: {} l: {}".format(v.shape,l.shape))
-            # print("v: {} l: {}".format(v,l))
-
-            output = self.model((v, l))
-
-        else:
-            v = torch.from_numpy(v).long()
-            v = v.to(self.gpu)
-            output = self.model(v)
-
-        array = output.cpu().data.numpy()
-        array = array[0]
-        indices = array.argsort()[-3:][::-1]
-        return ", ".join([list(idx2emoji.keys())[i] for i in indices])
+    # def _predict(self, text, word_to_ix):
+    #
+    #     vocab = Vocabulary(vocab_file=vocab_file, debug = True)
+    #
+    #     config = self.config
+    #     is_bow = config['is_bow']
+    #     padding = config['padding']
+    #
+    #     seq_limit = self.config['sequence_limit']
+    #     if is_bow:
+    #         seq = make_bow_vector(vocab.clean(text), word_to_ix)#.numpy()
+    #     else:
+    #         seq = make_seq_vector(vocab.clean(text), word_to_ix, seq_limit)#.numpy()
+    #     v = np.repeat([seq], self.model.batch_size, axis=0)
+    #     if padding:
+    #         f = np.nonzero(seq)[0][-1] + 1
+    #         l = np.repeat(f, self.model.batch_size, axis=0)
+    #         v = torch.from_numpy(v).long()
+    #         v = v.to(self.gpu)
+    #         # print("batch size")
+    #         # print("v: {} l: {}".format(v.shape,l.shape))
+    #         # print("v: {} l: {}".format(v,l))
+    #
+    #         output = self.model((v, l))
+    #
+    #     else:
+    #         v = torch.from_numpy(v).long()
+    #         v = v.to(self.gpu)
+    #         output = self.model(v)
+    #
+    #     array = output.cpu().data.numpy()
+    #     array = array[0]
+    #     indices = array.argsort()[-3:][::-1]
+    #     return ", ".join([list(idx2emoji.keys())[i] for i in indices])
 
     def _train_epoch(self, epoch):
         """
@@ -133,7 +133,13 @@ class Trainer(BaseTrainer):
             self.model.on_batch()
 
             output = self.model(data)
+
+
             loss = self.loss(output, target)
+
+            # MY addition #TODO:Remove? it works without
+            # loss = torch.autograd.Variable(loss, requires_grad = True)
+
             # print(loss)
             # print(self.optimizer)
             # if batch_idx == 5:

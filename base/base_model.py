@@ -18,6 +18,9 @@ class BaseModel(nn.Module):
     def on_batch(self):
         pass
 
+    def is_pretrainable(self):
+        return False
+
     def forward(self, *input):
         """
         Forward pass logic

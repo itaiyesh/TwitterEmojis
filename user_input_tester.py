@@ -17,7 +17,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    config_path = os.path.join(args.dir, 'config.json')
+    config_path = os.path.join(args.dir, 'lstm.json')
     config = json.load(open(config_path))
 
     path = os.path.join(config['trainer']['save_dir'], config['name'])
@@ -61,5 +61,6 @@ if __name__ == '__main__':
         output = model(output)
 
         array = output.data.numpy()
-        emotion = list(idx2emoji.keys())[np.argmax(array)]
+        emotion = list(
+            idx2emoji.keys())[np.argmax(array)]
         print(emotion)

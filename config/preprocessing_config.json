@@ -1,0 +1,33 @@
+{
+  "word2vec_files": {
+    "google_news": "C:/Users/iyeshuru/Downloads/GoogleNews-vectors-negative300.bin.gz",
+    "twitter": "C:/Users/iyeshuru/Downloads/word2vec_twitter_model.bin"
+  },
+  "sampling": {
+    "collect_data": false,
+    "_comment": "use sample_limit or class_limit here",
+    "vocab_sample_limit": 1000000,
+    "class_limit": 80000,
+    "sample_limit_NO": 27000000
+  },
+  "mongo": {
+    "ip": "192.168.14.124",
+    "port": 27017,
+    "db": "twitterdb",
+    "collection": "aug7"
+  },
+
+  "num_workers": 4,
+  "tfidf_limit": 15000,
+  "w2v_limit": 15000,
+  "frequent_words_limit" : 128,
+  "vocab_file": "datasets/processed/vocab.h5",
+  "labels_file": "datasets/processed/labels.h5",
+  "raw_file": "datasets/raw/tweets.h5",
+  "processed_sequence": "datasets/processed/tweets_seq.h5",
+  "processed_bow": "datasets/processed/tweets_bow.h5",
+  "sequence_limit": 56,
+
+  "_comment_" : "Batch size used in writing hdf5 data. Should match training batch size for better performance",
+  "batch_size": 32
+}

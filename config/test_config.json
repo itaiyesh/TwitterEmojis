@@ -1,0 +1,45 @@
+{
+  "name": "saved_tests",
+  "cuda": true,
+  "gpu": 0,
+  "test_cases": {
+
+    "ss_youtube": {
+        "data": "datasets/tests/ss_youtube.pickle",
+        "metric": "youtube_acc2",
+        "finetune_n_train": 1000
+    },
+        "ss_twitter": {
+       "data": "datasets/tests/ss_twitter.pickle",
+        "metric":"youtube_acc2",
+        "finetune_n_train": 1000
+    }
+  },
+  "tester": {
+    "epochs" :1
+  },
+  "trainer" :{
+      "epochs": 10,
+      "save_dir": "tester/",
+      "save_freq": 1,
+      "verbosity": 2,
+      "monitor": "val_loss",
+      "monitor_mode": "min"
+  },
+  "lr_scheduler_type": "ExponentialLR",
+  "lr_scheduler_freq": 1,
+  "lr_scheduler": {
+    "gamma": 0.6
+  },
+  "optimizer_type": "Adam",
+  "optimizer": {
+    "lr": 0.002,
+    "weight_decay": 0
+  },
+  "loss": "nlll",
+  "metrics": [
+    "my_metric",
+    "my_metric2",
+    "accuracy"
+  ]
+}

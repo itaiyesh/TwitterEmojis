@@ -1,0 +1,42 @@
+{
+  "model_name": "SVMEw2v",
+  "word2vec": "google_news",
+
+  "name": "svmew2v",
+  "cuda": true,
+  "gpu": 0,
+  "data_loader": {
+    "data_dir": "datasets/",
+    "batch_size": 32,
+    "shuffle": false,
+    "num_workers": 3
+  },
+  "validation": {
+    "validation_split": 0.1,
+    "shuffle": false
+  },
+  "lr_scheduler_type": "ExponentialLR",
+  "lr_scheduler_freq": 8,
+  "lr_scheduler": {
+    "gamma": 0.8
+  },
+  "optimizer_type": "Adam",
+  "optimizer": {
+    "lr": 0.001,
+    "weight_decay": 0
+  },
+  "loss": "nlll",
+  "metrics": [
+    "my_metric",
+    "my_metric2",
+    "accuracy"
+  ],
+  "trainer": {
+    "epochs": 10,
+    "save_dir": "saved/",
+    "save_freq": 1,
+    "verbosity": 2,
+    "monitor": "val_loss",
+    "monitor_mode": "min"
+  }
+}

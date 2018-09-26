@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
 import gensim
 import re
 from collections import Counter
@@ -5,31 +7,219 @@ from .deep_moji_parser import *
 import itertools
 from bs4 import BeautifulSoup
 import numpy as np
+import os, json
+from abc import ABCMeta, abstractmethod
+
+from tqdm import tqdm
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk import FreqDist
+from utils import *
+import random
 
 class Vocabulary():
-    def __init__(self , debug = False):
-        if not debug:
-            file1 = 'C:\\Users\iyeshuru\Downloads\word2vec_twitter_model.bin'
-            file1 = 'C:\\Users\iyeshuru\Downloads\GoogleNews-vectors-negative300.bin.gz'
 
-            model = gensim.models.KeyedVectors.load_word2vec_format(file1,binary = True, unicode_errors='ignore')
+    def __init__(self, config = None,
+                 samples = None,
+                 output_vocab_file = None,
+                 tfidf_limit = None,
+                 w2v_limit = None,
+                 vocab_sample_limit = None, sequence_limit_percentile = None, logger = None, debug = True, vocab_file = None, w2v_file = None):
+
+
+        if not debug and w2v_file:
+            model = gensim.models.KeyedVectors.load_word2vec_format(w2v_file,binary = True, unicode_errors='ignore')
             words = model.index2word
 
             w_rank = {}
             for i,word in enumerate(words):
                 w_rank[word] = i
 
-            self.WORDS = w_rank
+            self.words = w_rank
+
+        # Contraction file
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        self.contraction = json.load(open(os.path.join(script_dir, 'constants/contraction.json')))
+
+        # Adding capital case
+        for key, val in list(self.contraction.items()):
+            self.contraction[key.upper()] = val.upper()
 
         self.debug = debug
 
+
+        if vocab_file:
+            self.load_vocab_file(vocab_file)
+        else:
+            self.prepare_vocab(config ,
+                 samples,
+                 output_vocab_file,
+                 tfidf_limit,
+                 w2v_limit ,
+                 vocab_sample_limit , sequence_limit_percentile , logger )
+
+    def load_vocab_file(self, vocab_file):
+        word_to_ix = {}
+        with h5py.File(vocab_file, 'r') as h5f:
+            for ds in h5f.keys():
+                word_to_ix[ds] = int(h5f[ds].value)
+
+        self.word_to_ix = word_to_ix
+
+    def prepare_vocab(self,config ,
+                 samples,
+                 output_vocab_file,
+                 tfidf_limit,
+                 w2v_limit ,
+                 vocab_sample_limit , sequence_limit_percentile , logger ):
+
+        logger.info("Building vocabulary")
+
+        all_sentences = []
+        if vocab_sample_limit:
+            logger.info("Limiting vocab build up to {} samples".format(vocab_sample_limit))
+            # vocab_samples = samples[:vocab_sample_limit]
+
+
+            # First approach - doesnt shuffle indices. Partitions sampling to continuous chunks.
+            vocab_samples = np.concatenate((samples[:int(vocab_sample_limit/2)],samples[-int(vocab_sample_limit/2):]), axis=0)
+
+            # This approach first shuffles indices then retrieves tweets
+            # logging.info("Generating random indices for tweets.")
+            # indices =random.sample(list(range(0, len(samples))),vocab_sample_limit)
+            # logging.info("Sorting indices...")
+            # indices = sorted(indices)
+            # logging.info("Retrieving {} random tweets...".format(vocab_sample_limit))
+            # vocab_samples = samples[indices]
+
+            # This approach is too slow.
+            # vocab_samples = random.sample(list(samples), vocab_sample_limit)
+        else:
+            vocab_samples = samples
+
+        for sample in tqdm(vocab_samples):
+            all_sentences.append(self.clean(sample[0]))  # for some reason, we need this indexing
+
+        logger.info("Calculating {:.1f}% percentile of lengths".format(sequence_limit_percentile))
+        sentence_tokens = [sentence.split() for sentence in all_sentences]
+        sentence_tokens = [(tokens, len(tokens)) for tokens in sentence_tokens]
+        _, lengths = zip(*sentence_tokens)
+        sequence_limit = np.percentile(lengths, sequence_limit_percentile)
+        logger.info("{:.1f}% percentile is {}".format(sequence_limit_percentile, sequence_limit))
+        # num_sentences = len(sentence_tokens)
+        # filter(lambda sentence_tokens: sentence_tokens[1] <= sequence_limit, sentence_tokens)
+        # logging.info("Removed {} sentence. Remaining: {}".format(num_sentences-len(sentence_tokens), len(sentence_tokens)))
+        # sentence_tokens,_ = zip(*sentence_tokens)
+
+        # Method 0
+        sentences = [sentence.split() for sentence in all_sentences]
+        model = gensim.models.Word2Vec(sentences, min_count=5, workers=config['num_workers'])
+
+        words = []
+        norms = []
+        freqs = []
+        norm_per_freqs = []
+        for word in model.wv.vocab:
+            words.append(word)
+            norms.append(np.linalg.norm(model.wv.get_vector(word)))
+            freqs.append(model.wv.vocab[word].count)
+            norm_per_freqs.append(norms[-1] / freqs[-1])
+
+        df = pd.DataFrame({"words": words, "norms": norms, "freqs": freqs, "npf": norm_per_freqs})
+        df = df.sort_values(by=['norms', 'freqs'], ascending=False).head(w2v_limit)
+        w2v_words = df.words.get_values()
+        logger.info("Running TF-IDF on collected words...")
+
+        # Method 1
+        tvec = TfidfVectorizer(min_df=0.0, max_df=.9, stop_words='english', ngram_range=(1, 1))
+        tvec_weights = tvec.fit_transform(all_sentences)
+        weights = np.asarray(tvec_weights.mean(axis=0)).ravel().tolist()
+        weights_df = pd.DataFrame({'term': tvec.get_feature_names(), 'weight': weights})
+        tfidf_words = weights_df.sort_values(by='weight', ascending=False).head(tfidf_limit)
+        tfidf_words = list(tfidf_words['term'])
+
+        # Method 2
+        # all_sentences_tokens = [sentence.split() for sentence in all_sentences]
+        # dictionary = Dictionary.from_documents(all_sentences_tokens)
+        # corpus = [dictionary.doc2bow(doc) for doc in all_sentences_tokens]
+        # tfidf = TfidfModel(corpus, id2word=dictionary)
+        # word_values = []
+        # for bow in corpus:
+        #     word_values += [w for w in tfidf[bow]]
+        #
+        # word_values.sort(key=lambda x: x[1], reverse=True)
+        # tfidf_words = [tfidf.id2word[w[0]] for w in word_values]
+        # tfidf_words = list(set(tfidf_words))[:vocab_size]
+
+        # Adding most frequent k as suggested by
+        # https://openreview.net/pdf?id=Bk8N0RLxx
+        logger.info("Calculating most frequent words...")
+        all_words = []
+        for sentence in all_sentences:
+            for word in sentence.split():
+                all_words.append(word)
+        # This is using simple frequency
+        freq = FreqDist(all_words)
+        most_frequent_words = [w[0] for w in freq.most_common(config['frequent_words_limit'])]
+        # print(most_frequent_words)
+
+        word_to_ix = {}
+
+        # Note: It's important to keep pad indexed at 0
+        best_words = ['<pad>'] + list(set(tfidf_words).union(set(w2v_words)).union(set(most_frequent_words))) + [
+            '<unk>']
+
+        for word in best_words:
+            word_to_ix[word] = len(word_to_ix)
+
+        try:
+            logger.info("Removing {}".format(output_vocab_file))
+            os.remove(output_vocab_file)
+        except:
+            logger.info("Could not remove file")
+
+        logger.info("Writing vocab file")
+
+        with h5py.File(output_vocab_file, 'w') as h5_bow:
+            for k, v in tqdm(word_to_ix.items()):
+                # if k == 'b':
+                #     print(k)
+                # print(".{}.".format(k))
+                h5_bow.create_dataset(k, data=v)
+
+        logger.info("Saved vocab file: {} with {} words ({})".format(output_vocab_file, len(word_to_ix),
+                                                                     size(os.path.getsize(output_vocab_file))))
+        self.word_to_ix = word_to_ix
+
+    # def __init__(self , debug = False, w2v_file = None):
+    #     if not debug and w2v_file:
+    #         model = gensim.models.KeyedVectors.load_word2vec_format(w2v_file,binary = True, unicode_errors='ignore')
+    #         words = model.index2word
+    #
+    #         w_rank = {}
+    #         for i,word in enumerate(words):
+    #             w_rank[word] = i
+    #
+    #         self.words = w_rank
+    #
+    #     # Contraction file
+    #     script_dir = os.path.dirname(os.path.realpath(__file__))
+    #     self.contraction = json.load(open(os.path.join(script_dir, 'constants/contraction.json')))
+    #
+    #     # Adding capital case
+    #     for key, val in list(self.contraction.items()):
+    #         self.contraction[key.upper()] = val.upper()
+    #
+    #     self.debug = debug
+
     def words(self, text): return re.findall(r'\w+', text.lower())
+
 
     def P(self, word):
         "Probability of `word`."
         # use inverse of rank as proxy
         # returns 0 if the word isn't in the dictionary
-        return - self.WORDS.get(word, 0)
+        return - self.words.get(word, 0)
 
     def correction(self, word):
         if self.debug:
@@ -43,7 +233,7 @@ class Vocabulary():
 
     def known(self, words):
         "The subset of `words` that appear in the dictionary of WORDS."
-        return set(w for w in words if w in self.WORDS)
+        return set(w for w in words if w in self.words)
 
     def edits1(self, word):
         "All edits that are one edit away from `word`."
@@ -69,12 +259,34 @@ class Vocabulary():
         return ''.join(list(set(word)))
 
     def clean(self, tweet_text):
-        # tweet_text = ''.join(''.join(s)[:2] for _, s in itertools.groupby(tweet_text))
-        # tweet_text = ' '.join(tokenize(tweet_text))
-        # # Can't store "." keys in hdf5 so we have to convert it to \.
-        # tweet_text = re.sub(r'\.', '\.', tweet_text)
-        # return tweet_text
+        tweet_text = ''.join(''.join(s)[:2] for _, s in itertools.groupby(tweet_text))
+        # remove html tags
+        tweet_text = BeautifulSoup(tweet_text, 'html.parser').get_text()
+        # remove 'RT' text
+        tweet_text = re.sub(r'(^| )rt ', ' ', tweet_text)
+        # remove links
+        tweet_text = re.sub(r'https?:\/\/\S*', ' ', tweet_text)
 
+        # tweet_text = ' '.join(tokenize(tweet_text))
+        words = []
+        for word in tokenize(tweet_text):
+            word = self.smart_cap(word)
+            if word in self.contraction:
+                words += self.contraction[word].split()
+            elif self.is_punctuation(word):
+                words.append(self.normalize_punctuation(word))
+            else:
+                words.append(word)
+
+        tweet_text = ' '.join(words)
+
+        # Note, we remove emojis for training
+        tweet_text = re.sub('[^0-9a-zA-Z!?\.]', ' ', tweet_text)
+
+        # Can't store "." keys in hdf5 so we have to convert it to \.
+        tweet_text = re.sub(r'\.', '\.', tweet_text)
+
+        return tweet_text
 
         # ignore non ascii characters
         # TODO: Lower + upper
@@ -99,14 +311,26 @@ class Vocabulary():
         tweet_text = ''.join(''.join(s)[:2] for _, s in itertools.groupby(tweet_text))
 
         # .. -> %
-        # This will fuck up word to vec
+        # This will fuck up word to vec(?)
         # tweet_text = re.sub(r'\.\.', '%', tweet_text)
-
-
 
         # Space out words from punctuation marks (excluding '.' and ',')
         # hello? -> hello ?
-        tweet_text = re.sub('([!?]+)', r' \1', tweet_text)
+        tweet_text = re.sub('([!,?]+)', r' \1', tweet_text)
+
+        # Smart cap
+
+        words = []
+        for word in tweet_text.split():
+            word = self.smart_cap(word)
+            if word in self.contraction:
+                words += self.contraction[word].split()
+            elif self.is_punctuation(word):
+                words.append(self.normalize_punctuation(word))
+            else:
+                words.append(word)
+
+        tweet_text = ' '.join(words)
 
         # TODO: This part takes forever!!
         # useless_hashtag = ['tcot', 'tlot', 'ucot', 'p2b', 'p2', 'ccot', 'pjnet', 'gop', 'nra']
@@ -144,6 +368,7 @@ class Vocabulary():
 
 
         # Can't store "." keys in hdf5 so we have to convert it to \.
+        # TODO: This fucks up w2v
         tweet_text = re.sub(r'\.', '\.', tweet_text)
 
 

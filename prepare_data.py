@@ -5,24 +5,59 @@ import random
 import warnings
 
 warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
-import gensim
 import h5py
 import pandas as pd
 from pymongo import MongoClient
-from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm import tqdm
 import utils.index_to_emoji as idx2emoji
 from utils.parsing_utils import *
 from utils.util import *
-from nltk import FreqDist
+
+
 from utils import *
 import time
+from gensim.models import TfidfModel
 
 logging.basicConfig(level=logging.INFO, format='')
 
 logger = logging.getLogger()
 
 script_dir = os.path.dirname(__file__)
+
+
+# Dataset writing buffer to speed up writing to HDF5 file.
+class DatasetBuffer:
+    def __init__(self, dataset, buffer_size=2048):
+        self.index = 0
+        self.dataset = dataset
+        self.buffer_size = buffer_size
+        self.count = 0
+        self.buffer = []
+
+    def add(self, item):
+        self.buffer.append(item)
+        self.count += 1
+        if self.count == self.buffer_size:
+            self.dataset.resize(self.dataset.shape[0] + self.buffer_size, axis=0)
+            self.dataset[self.index:self.index + self.buffer_size] = np.vstack(self.buffer)
+
+            # for i in range(0, self.buffer_size):
+            #     self.dataset[self.index] = self.buffer[i]
+            #     self.index+=1
+
+            self.count = 0
+
+            self.index += self.buffer_size
+            self.buffer = []
+
+    # Adding remaining elements upon file closing
+    def close(self):
+        if self.count > 0:
+            self.dataset.resize(self.dataset.shape[0] + self.count, axis=0)
+            self.dataset[self.index:self.index + self.count] = np.vstack(self.buffer)
+            self.index += self.count
+            self.count = 0
+            self.buffer = []
 
 
 def count_classes(labels):
@@ -40,74 +75,16 @@ def count_classes(labels):
     logging.info(label_count)
 
 
-def build_vocab(samples, config):
+def build_vocab(samples, config, sequence_limit_percentile=99.0):
+
     output_vocab_file = config["vocab_file"]
-    min_df, max_df = config["sampling"]["vocab_min_df"], config["sampling"]["vocab_max_df"]
-    vocab_size = config["tfidf_limit"]
+    tfidf_limit = config["tfidf_limit"]
+    w2v_limit = config["w2v_limit"]
     vocab_sample_limit = config['sampling']['vocab_sample_limit'] if 'vocab_sample_limit' in config[
         'sampling'] else None
 
-    #TODO: Remove debug
-    vocab = Vocabulary(debug = True)
-
-    logging.info("Building vocabulary")
-
-    all_sentences = []
-    if vocab_sample_limit:
-        logging.info("Limiting vocab build up to {} samples".format(vocab_sample_limit))
-        vocab_samples = samples[:vocab_sample_limit]
-    else:
-        vocab_samples = samples
-
-    for sample in tqdm(vocab_samples):
-        all_sentences.append(vocab.clean(sample[0]))  # for some reason, we need this indexing
-
-    logging.info("Running TF-IDF on collected words...")
-    tvec = TfidfVectorizer(min_df=min_df, max_df=max_df, ngram_range=(1, 1), lowercase=False)  # stop_words='english',
-    tvec_weights = tvec.fit_transform(all_sentences)
-    weights = np.asarray(tvec_weights.mean(axis=0)).ravel().tolist()
-    weights_df = pd.DataFrame({'term': tvec.get_feature_names(), 'weight': weights})
-    weights_df.sort_values(by='weight', ascending=False).head(vocab_size)
-    logging.info("Chosen {} words for vocab".format(len(weights_df)))
-    print(weights_df)
-    tfidf_words = [word[0] for word in weights_df.get_values()]
-
-    # Adding most frequent k as suggested by
-    # https://openreview.net/pdf?id=Bk8N0RLxx
-    all_words =[]
-    for sentence in all_sentences:
-        for word in sentence.split():
-            all_words.append(word)
-    # This is using simple frequency
-    freq = FreqDist(all_words)
-    most_frequent_words = [w[0] for w in freq.most_common(config['frequent_words_limit'])]
-    print(most_frequent_words)
-
-    word_to_ix = {}
-
-    # It's important to keep pad first!
-    best_words = ['<pad>'] + list(set(tfidf_words).union(set(most_frequent_words))) + ['<unk>']
-
-    for word in best_words:
-        word_to_ix[word] = len(word_to_ix)
-
-
-    try:
-        logging.info("Removing {}".format(output_vocab_file))
-        os.remove(output_vocab_file)
-    except:
-        logging.info("Could not remove file")
-
-    logging.info("Writing vocab file")
-
-    with h5py.File(output_vocab_file, 'w') as h5_bow:
-        for k, v in tqdm(word_to_ix.items()):
-            h5_bow.create_dataset(k, data=v)
-
-    logger.info("Saved vocab file: {} with {} words ({})".format(output_vocab_file, len(word_to_ix),
-                                                                 size(os.path.getsize(output_vocab_file))))
-    vocab.word_to_ix = word_to_ix
-    return vocab
+    # TODO: Remove debug
+    return Vocabulary(config, samples, output_vocab_file, tfidf_limit, w2v_limit, vocab_sample_limit, sequence_limit_percentile, logger, debug = True)
 
 
 def process_samples(config):
@@ -119,7 +96,7 @@ def process_samples(config):
     input_raw_file = config["raw_file"]
 
     sequence_limit = config["sequence_limit"]
-    chunk_lines = config["data_loader"]["batch_size"]
+    chunk_lines = config["batch_size"]
 
     class_limit = config['sampling']['class_limit'] if 'class_limit' in config['sampling'] else None
     total_limit = config['sampling']['total_limit'] if 'total_limit' in config['sampling'] else None
@@ -148,7 +125,7 @@ def process_samples(config):
     # This enforces an equal sample from each class
     # Note: raw data should already be more or less so
     if class_limit:
-        logging.info("Collecting maximum {} of each class".format(class_limit))
+        logging.info("Collecting a maximum of {} from each class".format(class_limit))
         class_count = len(idx2emoji) * [class_limit]
         # TODO: Must make sure each class has enough data in samples!
         lines = class_limit * len(idx2emoji)
@@ -192,16 +169,45 @@ def process_samples(config):
                                                    chunks=(chunk_lines, 1),
                                                    dtype='int32')
 
-        i = 0
+        bow_samples_dataset_buffer = DatasetBuffer(bow_samples_dataset)
+        bow_labels_dataset_buffer = DatasetBuffer(bow_labels_dataset)
+        seq_samples_dataset_buffer = DatasetBuffer(seq_samples_dataset)
+        seq_labels_dataset_buffer = DatasetBuffer(seq_labels_dataset)
+
+        iteration_count = 0
+        short_texts_count = 0
+        long_texts_count = 0
         satisfied_class_count = 0
         samples_iterate = tqdm(zip(samples, labels), total=len(samples))
+        all_classes_satisfied = False
+        multi_label_count = 0
 
         for (sample, _) in samples_iterate:
+            iteration_count += 1
+
+            if all_classes_satisfied:
+                break
 
             raw_text = sample[0]
-            label = 1
+            # TODO: Use clean from previous step
+            # TODO: Remove words shorter than 1/2..
+            # TODO: Put outside loop!!
+            text = vocab.clean(raw_text)  # for some reason, we need this indexing
+            text_len = len(text.split())
+            if text_len < 2:
+                short_texts_count += 1
+                continue
+
+            if text_len > sequence_limit:
+                long_texts_count += 1
+                continue
+
             # label = make_unique_target_for_maximal_class(raw_text)
-            for label in make_targets_for_classes(raw_text):
+            targets = make_targets_for_classes(raw_text)
+            if len(targets) > 1:
+                multi_label_count += 1
+
+            for label in targets:
 
                 if label is None:
                     # Bad tweet
@@ -212,6 +218,7 @@ def process_samples(config):
                         if len(np.nonzero(class_count)[0]) < 1:
                             # Finished Gathering all samples
                             logging.info("All classes have sufficient samples. Breaking")
+                            all_classes_satisfied = True
                             break
                         else:
                             # Finished gathering samples for this class
@@ -220,35 +227,63 @@ def process_samples(config):
                         class_count[label] -= 1
                         if class_count[label] == 0:
                             satisfied_class_count += 1
-                            samples_iterate.set_description(
-                                "{}/{} classes satisfied".format(satisfied_class_count, len(idx2emoji)))
+                            if len(idx2emoji) - satisfied_class_count < 4:
+                                samples_iterate.set_description(
+                                    "{}/{} classes satisfied: Missing {}".format(satisfied_class_count, len(idx2emoji),
+                                                                                 ','.join(
+                                                                                     [list(idx2emoji.keys())[
+                                                                                          class_index]
+                                                                                      for class_index in
+                                                                                      np.nonzero(class_count)[0]])))
+                            else:
+                                samples_iterate.set_description(
+                                    "{}/{} classes satisfied".format(satisfied_class_count, len(idx2emoji)))
 
-                # TODO: Use clean from previous step
-                text = vocab.clean(raw_text)  # for some reason, we need this indexing
+                # pr.enable()
 
-                bow_samples_dataset.resize(bow_samples_dataset.shape[0] + 1, axis=0)
-                bow_labels_dataset.resize(bow_labels_dataset.shape[0] + 1, axis=0)
+                bow_samples_dataset_buffer.add(make_bow_vector(text, vocab.word_to_ix))
+                bow_labels_dataset_buffer.add(label)
 
-                seq_samples_dataset.resize(seq_samples_dataset.shape[0] + 1, axis=0)
-                seq_labels_dataset.resize(seq_labels_dataset.shape[0] + 1, axis=0)
+                seq_samples_dataset_buffer.add(make_seq_vector(text, vocab.word_to_ix, sequence_limit))
+                seq_labels_dataset_buffer.add(label)
 
-                pr.enable()
-                bow_samples_dataset[i] = make_bow_vector(text, vocab.word_to_ix)
-                bow_labels_dataset[i] = label
+                # bow_samples_dataset.resize(bow_samples_dataset.shape[0] + 1, axis=0)
+                # bow_labels_dataset.resize(bow_labels_dataset.shape[0] + 1, axis=0)
+                #
+                # seq_samples_dataset.resize(seq_samples_dataset.shape[0] + 1, axis=0)
+                # seq_labels_dataset.resize(seq_labels_dataset.shape[0] + 1, axis=0)
+                #
+                # bow_samples_dataset[i] = make_bow_vector(text, vocab.word_to_ix)
+                # bow_labels_dataset[i] = label
+                #
+                # seq_samples_dataset[i] = make_seq_vector(text, vocab.word_to_ix, sequence_limit)
+                # seq_labels_dataset[i] = label
 
-                seq_samples_dataset[i] = make_seq_vector(text, vocab.word_to_ix, sequence_limit)
-                seq_labels_dataset[i] = label
+                # pr.disable()
+                # s = io.StringIO()
+                # ps = pstats.Stats(pr, stream=s)
+                # ps.print_stats()
+                # print(s.getvalue())
 
-                pr.disable()
-                s = io.StringIO()
-                ps = pstats.Stats(pr, stream=s)
-                ps.print_stats()
-                print(s.getvalue())
+                # i += 1
+                # if i == lines:
+                #     break
 
-                i += 1
-                if i == lines:
-                    break
+        samples_iterate.close()
 
+        total_samples = len(seq_samples_dataset)
+
+        bow_samples_dataset_buffer.close()
+        bow_labels_dataset_buffer.close()
+        seq_samples_dataset_buffer.close()
+        seq_labels_dataset_buffer.close()
+    logger.info(
+        "Of: {} samples iterated, {:.1f}%  had multi-labels. {:.1f}%  were too short. {:.1f}% were too long. Generated {} samples after splitting".format(
+            iteration_count,
+            (multi_label_count / iteration_count)*100,
+            (short_texts_count / iteration_count)*100,
+            (long_texts_count / iteration_count)*100,
+            total_samples))
     logger.info("Saved bow processed file: {} with {} samples ({})".format(processed_file_bow, lines,
                                                                            size(os.path.getsize(processed_file_bow))))
 
@@ -273,9 +308,7 @@ def shuffle(input_file, to_string=True, chunk_lines=32):
     labels = input_h5['labels']
 
     with h5py.File(output_file, 'w') as output_h5:
-        logging.info("Shuffling {}. This will take approximately {}".format(input_file,
-                                                                            datetime.timedelta(
-                                                                                seconds=((0.0001175470 * n)))))
+        logging.info("Shuffling {}".format(input_file))
         joined = list(zip(samples, labels))
         random.shuffle(joined)
         samples, labels = zip(*joined)
@@ -286,20 +319,34 @@ def shuffle(input_file, to_string=True, chunk_lines=32):
         dt = h5py.special_dtype(vlen=str) if to_string else 'int32'
 
         dset1 = output_h5.create_dataset('features',
-                                         shape=(n, features),
+                                         maxshape=(n, features),
+                                         shape=(0, features),
                                          compression="gzip",
                                          chunks=(chunk_lines, features),
                                          dtype=dt)
 
         dset2 = output_h5.create_dataset('labels',
-                                         shape=(n, labels_n),
+                                         maxshape=(n, labels_n),
+                                         shape=(0, labels_n),
                                          compression="gzip",
                                          chunks=(chunk_lines, labels_n),
                                          dtype='int32')
         logging.info("Writing {}...".format(input_file))
+        # TODO: Buffer this writing as well!
+
+        dset1_buffer = DatasetBuffer(dset1)
+        dset2_buffer = DatasetBuffer(dset2)
+
         for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
-            dset1[i] = sample
-            dset2[i] = label
+            dset1_buffer.add(sample)
+            dset2_buffer.add(label)
+
+        dset1_buffer.close()
+        dset2_buffer.close()
+
+        # for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
+        #     dset1[i] = sample
+        #     dset2[i] = label
 
     input_h5.close()
     os.remove(input_file)
@@ -471,5 +518,6 @@ def prepare_data(config):
 if __name__ == '__main__':
     logger = logging.getLogger()
 
-    config, args = parse_config()
-    prepare_data(config)
+    pre_config = parse_config()[2]
+
+    prepare_data(pre_config)

@@ -15,8 +15,8 @@ def main():
     tweets = h5py.File(tweets_file, 'r', libver='latest', swmr=True)
 
     # labels = tweets['labels'][-1600:]
-    labels = tweets['labels'][:16000]
-
+    labels = tweets['labels']#[:16000]
+    #
     # sample_indices = list(range(0, len(labels), int(len(labels)/100)))
     # random.shuffle(sample_indices)
     # labels = labels[sample_indices]

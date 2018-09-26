@@ -1,0 +1,109 @@
+{
+  "models": {
+    "DM" : {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": true
+    },
+    "NaiveBayes": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "is_traditional": true,
+      "pad_input": false,
+      "is_bow": true
+    },
+    "SVM": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "pad_input": false,
+      "is_bow": true
+    },
+
+    "SVME": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "pad_input": false,
+      "is_bow": true,
+      "finetune_model": "SVMEPretrained"
+    },
+      "SVMEw2v": {
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "pad_input": false,
+      "is_bow": true,
+      "embedding_dim": 300
+    },
+      "SVMEPretrained":{
+      "dataset": "datasets/processed/tweets_bow.h5",
+      "pad_input": false,
+      "is_bow": true
+    },
+    "LSTM": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": false
+    },
+    "LSTM2": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": true
+    },
+        "biLSTM": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 128,
+      "embedding_dim": 128,
+      "pad_input": true
+},   "biLSTMDO": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 256,
+      "embedding_dim": 128,
+      "pad_input": true,
+      "finetune_model": "biLSTMDOPretrained"
+    },
+      "LSTM2Layer": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "hidden_dim": 300,
+      "embedding_dim": 1000,
+      "pad_input": true
+    },
+
+    "DeepNeuralDecisionForest": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": false
+    },
+    "CNN": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": false
+    },
+    "CNN2": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": true
+    },
+    "StackedCRNN": {
+      "dataset": "datasets/processed/tweets_seq.h5",
+      "pad_input": true,
+
+
+      "nembedding": 300,
+      "clip": 5.0,
+      "cnn": {
+        "kernel_sizes": [
+          [
+            5,
+            300
+          ],
+          [
+            5,
+            256
+          ]
+        ],
+        "nkernels": [
+          256,
+          128
+        ]
+      },
+      "rnn": {
+        "nhidden": 128,
+        "nlayers": 2,
+        "dropout": 0.5
+      }
+    }
+  }
+}

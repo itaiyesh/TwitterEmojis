@@ -46,7 +46,7 @@ class BaseTrainer:
         self.start_epoch = 1
         self.checkpoint_dir = os.path.join(config['trainer']['save_dir'], self.name)
         ensure_dir(self.checkpoint_dir)
-        json.dump(config, open(os.path.join(self.checkpoint_dir, 'config.json'), 'w'),
+        json.dump(config, open(os.path.join(self.checkpoint_dir, 'lstm.json'), 'w'),
                   indent=4, sort_keys=False)
         if resume:
             self._resume_checkpoint(resume)
@@ -110,8 +110,8 @@ class BaseTrainer:
             'config': self.config
         }
         filename = os.path.join(self.checkpoint_dir,
-                                datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d-%H.%M.%S')
-                                +'checkpoint-epoch{:03d}-loss-{:.4f}.pth.tar'.format(epoch, log['loss']))
+                                datetime.datetime.fromtimestamp(time.time()).strftime('%m-%d-%H.%M')
+                                +'checkpoint-epoch{:03d}-loss-{:.4f}-val-loss-{:.4f}.pth.tar'.format(epoch, log['loss'], log['val_loss']))
         torch.save(state, filename)
         if save_best:
             try:
@@ -143,4 +143,5 @@ class BaseTrainer:
                         state[k] = v.cuda(self.gpu)
         self.train_logger = checkpoint['logger']
         self.config = checkpoint['config']
+        # self.config['data_loader']['batch_size'] =32
         self.logger.info("Checkpoint '{}' (epoch {}) loaded".format(resume_path, self.start_epoch))

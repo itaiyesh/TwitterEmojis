@@ -7,7 +7,6 @@ import torch
 from torch.autograd import Variable
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-import gensim
 import numpy as np
 import h5py
 import logging
@@ -17,6 +16,7 @@ import argparse
 
 from torch.nn.parameter import Parameter
 
+from .torchmoji import *
 
 # https://discuss.pytorch.org/t/problems-on-implementation-of-deep-neural-decision-forest/837/5
 class Net(nn.Module):
@@ -167,3 +167,25 @@ class DeepNeuralDecisionForest(BaseModel):
         py_x = self.compute_py_x(mu_e, leaf_p_e)
         return torch.log(py_x)
 
+
+
+
+class DM(BaseModel):
+    def __init__(self, vocab_size, label_size, general_config, model_config): #embedding_dim, hidden_dim, vocab_size, label_size, batch_size, use_gpu):
+        super(DM, self).__init__(general_config)
+        self.model =  TorchMoji(nb_classes=label_size,
+                     nb_tokens=vocab_size,
+                     output_logits=False).to(torch.device('cuda:0'))
+
+        trainable_modules = [(n, m) for n, m in self.model.named_children() if len([id(p) for p in m.parameters()]) !=  0]
+        for _, module in trainable_modules:
+            for name, param in module.named_parameters():
+                param.requires_grad = True
+    def forward(self, data):
+
+        # x, lengths = data
+        # # print(x)
+        # packed_embedding = pack_padded_sequence(x, lengths, batch_first=True)
+        # x = Variable(packed_embedding)
+
+        return self.model.forward(data[0], data[1])

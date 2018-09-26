@@ -113,7 +113,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def make_bow_vector(sentence, word_to_ix):
-    vec = torch.zeros(len(word_to_ix))
+    vec = np.zeros(len(word_to_ix))
     for word in sentence.split():
         if word in word_to_ix:
             vec[word_to_ix[word]] += 1
@@ -122,7 +122,7 @@ def make_bow_vector(sentence, word_to_ix):
 
 
 def make_seq_vector(sentence, word_to_ix, sequence_limit):
-    sequence = torch.LongTensor(np.zeros(sequence_limit, dtype=np.int64))
+    sequence = np.zeros(sequence_limit, dtype=np.int64)
     count = 0
     # TODO: need to replace missing words by <em> or something...
     for word in sentence.split():
