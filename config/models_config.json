@@ -1,6 +1,6 @@
 {
   "models": {
-    "DM" : {
+    "DM": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "pad_input": true
     },
@@ -15,20 +15,19 @@
       "pad_input": false,
       "is_bow": true
     },
-
     "SVME": {
       "dataset": "datasets/processed/tweets_bow.h5",
       "pad_input": false,
       "is_bow": true,
       "finetune_model": "SVMEPretrained"
     },
-      "SVMEw2v": {
+    "SVMEw2v": {
       "dataset": "datasets/processed/tweets_bow.h5",
       "pad_input": false,
       "is_bow": true,
       "embedding_dim": 300
     },
-      "SVMEPretrained":{
+    "SVMEPretrained": {
       "dataset": "datasets/processed/tweets_bow.h5",
       "pad_input": false,
       "is_bow": true
@@ -45,25 +44,25 @@
       "embedding_dim": 1000,
       "pad_input": true
     },
-        "biLSTM": {
+    "biLSTM": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "hidden_dim": 128,
       "embedding_dim": 128,
       "pad_input": true
-},   "biLSTMDO": {
+    },
+    "biLSTMDO": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "hidden_dim": 256,
-      "embedding_dim": 128,
+      "embedding_dim": 256,
       "pad_input": true,
       "finetune_model": "biLSTMDOPretrained"
     },
-      "LSTM2Layer": {
+    "LSTM2Layer": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "hidden_dim": 300,
       "embedding_dim": 1000,
       "pad_input": true
     },
-
     "DeepNeuralDecisionForest": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "pad_input": false
@@ -79,8 +78,6 @@
     "StackedCRNN": {
       "dataset": "datasets/processed/tweets_seq.h5",
       "pad_input": true,
-
-
       "nembedding": 300,
       "clip": 5.0,
       "cnn": {

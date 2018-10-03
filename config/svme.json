@@ -12,7 +12,7 @@
     "num_workers": 3
   },
   "validation": {
-    "validation_split": 0.1,
+    "validation_split": 0.01,
     "shuffle": false
   },
   "lr_scheduler_type": "ExponentialLR",
@@ -29,10 +29,11 @@
   "metrics": [
     "my_metric",
     "my_metric2",
-    "accuracy"
+    "accuracy",
+    "youtube_acc2_copy"
   ],
   "trainer": {
-    "epochs": 10,
+    "epochs": 15,
     "save_dir": "saved/",
     "save_freq": 1,
     "verbosity": 2,

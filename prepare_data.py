@@ -86,6 +86,7 @@ def build_vocab(samples, config, sequence_limit_percentile=99.0):
     # TODO: Remove debug
     return Vocabulary(config, samples, output_vocab_file, tfidf_limit, w2v_limit, vocab_sample_limit, sequence_limit_percentile, logger, debug = True)
 
+# def random_chunks(bow_samples_dataset,bow_labels_dataset,seq_samples_dataset,seq_labels_dataset,chunk_size):
 
 def process_samples(config):
     processed_file_bow = config['processed_bow']
@@ -103,12 +104,12 @@ def process_samples(config):
 
     dataset = h5py.File(input_raw_file, 'r', libver='latest', swmr=True)
     samples = dataset['features']
-    labels = dataset['labels']
+    # labels = dataset['labels']
 
     if total_limit:
         logging.info("limiting to {} samples".format(total_limit))
         samples = samples[:total_limit]
-        labels = labels[:total_limit]
+        # labels = labels[:total_limit]
 
     # count_classes(labels)
     vocab = build_vocab(samples, config)
@@ -169,6 +170,8 @@ def process_samples(config):
                                                    chunks=(chunk_lines, 1),
                                                    dtype='int32')
 
+        # bow_samples_dataset,bow_labels_dataset,seq_samples_dataset,seq_labels_dataset = random_chunks(bow_samples_dataset,bow_labels_dataset,seq_samples_dataset,seq_labels_dataset,1024)
+
         bow_samples_dataset_buffer = DatasetBuffer(bow_samples_dataset)
         bow_labels_dataset_buffer = DatasetBuffer(bow_labels_dataset)
         seq_samples_dataset_buffer = DatasetBuffer(seq_samples_dataset)
@@ -178,11 +181,11 @@ def process_samples(config):
         short_texts_count = 0
         long_texts_count = 0
         satisfied_class_count = 0
-        samples_iterate = tqdm(zip(samples, labels), total=len(samples))
+        samples_iterate = tqdm(samples, total=len(samples))
         all_classes_satisfied = False
         multi_label_count = 0
 
-        for (sample, _) in samples_iterate:
+        for sample in samples_iterate:
             iteration_count += 1
 
             if all_classes_satisfied:
@@ -247,27 +250,6 @@ def process_samples(config):
                 seq_samples_dataset_buffer.add(make_seq_vector(text, vocab.word_to_ix, sequence_limit))
                 seq_labels_dataset_buffer.add(label)
 
-                # bow_samples_dataset.resize(bow_samples_dataset.shape[0] + 1, axis=0)
-                # bow_labels_dataset.resize(bow_labels_dataset.shape[0] + 1, axis=0)
-                #
-                # seq_samples_dataset.resize(seq_samples_dataset.shape[0] + 1, axis=0)
-                # seq_labels_dataset.resize(seq_labels_dataset.shape[0] + 1, axis=0)
-                #
-                # bow_samples_dataset[i] = make_bow_vector(text, vocab.word_to_ix)
-                # bow_labels_dataset[i] = label
-                #
-                # seq_samples_dataset[i] = make_seq_vector(text, vocab.word_to_ix, sequence_limit)
-                # seq_labels_dataset[i] = label
-
-                # pr.disable()
-                # s = io.StringIO()
-                # ps = pstats.Stats(pr, stream=s)
-                # ps.print_stats()
-                # print(s.getvalue())
-
-                # i += 1
-                # if i == lines:
-                #     break
 
         samples_iterate.close()
 
@@ -297,6 +279,68 @@ def process_samples(config):
                 "Missing samples for classes {} (total {})".format(np.nonzero(class_count)[0], np.sum(class_count)))
 
 
+# def shuffle(input_file, to_string=True, chunk_lines=32):
+#     output_file = input_file + 'tmp'
+#
+#     input_h5 = h5py.File(input_file, 'r', libver='latest', swmr=True)
+#     n = len(input_h5['features'])
+#     logging.info("Reading {} lines from dataset".format(n))
+#
+#     samples = input_h5['features']
+#     labels = input_h5['labels']
+#
+#     with h5py.File(output_file, 'w') as output_h5:
+#         logging.info("Shuffling {}".format(input_file))
+#
+#         # Option 2
+#         joined = list(zip(samples, labels))
+#         random.shuffle(joined)
+#         samples, labels = zip(*joined)
+#
+#         labels_n = len(labels[0])
+#         features = len(samples[0])
+#
+#         dt = h5py.special_dtype(vlen=str) if to_string else 'int32'
+#
+#         dset1 = output_h5.create_dataset('features',
+#                                          maxshape=(n, features),
+#                                          shape=(0, features),
+#                                          compression="gzip",
+#                                          chunks=(chunk_lines, features),
+#                                          dtype=dt)
+#
+#         dset2 = output_h5.create_dataset('labels',
+#                                          maxshape=(n, labels_n),
+#                                          shape=(0, labels_n),
+#                                          compression="gzip",
+#                                          chunks=(chunk_lines, labels_n),
+#                                          dtype='int32')
+#         logging.info("Writing {}...".format(input_file))
+#         # TODO: Buffer this writing as well!
+#
+#         dset1_buffer = DatasetBuffer(dset1)
+#         dset2_buffer = DatasetBuffer(dset2)
+#
+#         for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
+#             dset1_buffer.add(sample)
+#             dset2_buffer.add(label)
+#
+#         dset1_buffer.close()
+#         dset2_buffer.close()
+#
+#         # for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
+#         #     dset1[i] = sample
+#         #     dset2[i] = label
+#
+#     input_h5.close()
+#     os.remove(input_file)
+#     os.rename(output_file, input_file)
+#
+#     logger.info("Saved shuffled file: {} with {} samples ({})".format(input_file, n,
+#                                                                       size(
+#                                                                           os.path.getsize(input_file))))
+
+# This shuffle methods does not require much memory, but is slower
 def shuffle(input_file, to_string=True, chunk_lines=32):
     output_file = input_file + 'tmp'
 
@@ -307,12 +351,11 @@ def shuffle(input_file, to_string=True, chunk_lines=32):
     samples = input_h5['features']
     labels = input_h5['labels']
 
-    with h5py.File(output_file, 'w') as output_h5:
-        logging.info("Shuffling {}".format(input_file))
-        joined = list(zip(samples, labels))
-        random.shuffle(joined)
-        samples, labels = zip(*joined)
+    logging.info("Shuffling {}".format(input_file))
+    indices = list(range(0,n))
+    random.shuffle(indices)
 
+    with h5py.File(output_file, 'w') as output_h5:
         labels_n = len(labels[0])
         features = len(samples[0])
 
@@ -337,16 +380,12 @@ def shuffle(input_file, to_string=True, chunk_lines=32):
         dset1_buffer = DatasetBuffer(dset1)
         dset2_buffer = DatasetBuffer(dset2)
 
-        for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
-            dset1_buffer.add(sample)
-            dset2_buffer.add(label)
+        for i in tqdm(indices, total=n):
+            dset1_buffer.add(samples[i])
+            dset2_buffer.add(labels[i])
 
         dset1_buffer.close()
         dset2_buffer.close()
-
-        # for i, (sample, label) in tqdm(enumerate(zip(samples, labels)), total=n):
-        #     dset1[i] = sample
-        #     dset2[i] = label
 
     input_h5.close()
     os.remove(input_file)
@@ -356,16 +395,91 @@ def shuffle(input_file, to_string=True, chunk_lines=32):
                                                                       size(
                                                                           os.path.getsize(input_file))))
 
+def remove_duplicates(input_file, to_string=True, chunk_lines=32):
+    # Memory chunks for holding dataframe in preparation for writing
+    memory_chunk_size = 2 ** 10
+
+    output_file = input_file + 'tmp'
+
+    input_h5 = h5py.File(input_file, 'r', libver='latest', swmr=True)
+    n = len(input_h5['features'])
+    logging.info("Reading {} lines from dataset".format(n))
+
+    samples = input_h5['features']#[:10000]
+    labels = input_h5['labels']#[:10000]
+
+    logging.info("Initializing dataframe...")
+    df = pd.DataFrame(pd.np.empty((len(samples), len(samples[0]) + 1)) * pd.np.nan)
+
+    logging.info("Aggregating samples+labels...")
+    for i, sample in tqdm(enumerate(samples), total=n):
+        row = [i for i in sample] + [labels[i][0]]
+        df.loc[i] = row
+
+    logging.info("Dropping duplicates...")
+
+    df = df.drop_duplicates()
+
+    new_n = len(df)
+    logging.info("Removed: {} duplicates".format(n-new_n))
+
+    with h5py.File(output_file, 'w') as output_h5:
+        labels_n = len(labels[0])
+        features = len(samples[0])
+
+        dt = h5py.special_dtype(vlen=str) if to_string else 'int32'
+
+        dset1 = output_h5.create_dataset('features',
+                                         maxshape=(new_n, features),
+                                         shape=(0, features),
+                                         compression="gzip",
+                                         chunks=(chunk_lines, features),
+                                         dtype=dt)
+
+        dset2 = output_h5.create_dataset('labels',
+                                         maxshape=(new_n, labels_n),
+                                         shape=(0, labels_n),
+                                         compression="gzip",
+                                         chunks=(chunk_lines, labels_n),
+                                         dtype='int32')
+
+        logging.info("Writing {}...".format(input_file))
+
+        dset1_buffer = DatasetBuffer(dset1)
+        dset2_buffer = DatasetBuffer(dset2)
+
+        max_chunks = int(np.ceil(len(df)/memory_chunk_size))
+        i = 0
+        for chunk in tqdm(range(max_chunks), total=max_chunks):
+            df_list = df[i:min(i+memory_chunk_size, len(df))].values.tolist()
+            for df_list_index in range(0, len(df_list)):
+                i+=1
+                sample = df_list[df_list_index][:-1]
+                label = df_list[df_list_index][-1]
+                dset1_buffer.add(sample)
+                dset2_buffer.add(label)
+
+        dset1_buffer.close()
+        dset2_buffer.close()
+
+    input_h5.close()
+    os.remove(input_file)
+    os.rename(output_file, input_file)
+
+    logger.info("Saved unique file: {} with {} samples ({})".format(input_file, new_n,
+                                                                      size(
+                                                                          os.path.getsize(input_file))))
+
 
 def preprocess_mongo(collection, raw_file, limit=None):
     logging.info("Retrieving samples from mongoDB")
     total = limit if limit else collection.estimated_document_count()
-
+    # total = 10000
     logger.info("Gathering {} documents from mongoDB...".format(total))
 
     dt = h5py.special_dtype(vlen=str)  # PY3
 
-    cursor = collection.find().limit(total)
+    cursor = collection.find().limit(total )
 
     fetch_and_read_batch_size = 1024
     cursor.batch_size(fetch_and_read_batch_size)
@@ -383,34 +497,39 @@ def preprocess_mongo(collection, raw_file, limit=None):
 
     with h5py.File(raw_file, 'w') as h5f:
         dset1 = h5f.create_dataset('features',
-                                   shape=(total, 1),
+                                   shape=(0, 1),
+                                   maxshape=(total, 1),
                                    compression="gzip",
                                    compression_opts=9,
                                    chunks=(fetch_and_read_batch_size, 1),
                                    dtype=dt)
 
-        dset2 = h5f.create_dataset('labels',
-                                   shape=(total, len(idx2emoji)),
-                                   compression="gzip",
-                                   compression_opts=9,
-                                   chunks=(fetch_and_read_batch_size, len(idx2emoji)),
-                                   dtype='int32')
+        # dset2 = h5f.create_dataset('labels',
+        #                            shape=(total, len(idx2emoji)),
+        #                            compression="gzip",
+        #                            compression_opts=9,
+        #                            chunks=(fetch_and_read_batch_size, len(idx2emoji)),
+        #                            dtype='int32')
 
+        buffer = DatasetBuffer(dset1)
         for i, document in tqdm(enumerate(cursor), total=total):
             try:
                 raw_text = document['text']
-
-                dset1[i] = raw_text
-                label = make_multi_label_target(raw_text)
-                if len(np.nonzero(label.numpy())[0]) == 0:
-                    bad_samples_count += 1
-                dset2[i, :] = make_multi_label_target(raw_text)
+                buffer.add(raw_text)
+                # dset1[i] = raw_text
+                # label = make_multi_label_target(raw_text)
+                # if len(np.nonzero(label.numpy())[0]) == 0:
+                #     bad_samples_count += 1
+                # #TODO: this is not in use
+                # dset2[i, :] = make_multi_label_target(raw_text)
             except StopIteration:
+                buffer.close()
                 break
             except Exception as e:
                 logging.info("{}: Sleeping...".format(e))
                 time.sleep(60)
 
+        buffer.close()
     logging.info("Bad samples count: {}/{}".format(bad_samples_count, total))
     logger.info("Saved raw file: {} with {} samples ({})".format(raw_file, total, size(os.path.getsize(raw_file))))
 
@@ -511,8 +630,11 @@ def prepare_data(config):
     processed_file_sequence = config['processed_sequence']
     processed_file_bow = config['processed_bow']
 
-    shuffle(processed_file_sequence, to_string=False)
-    shuffle(processed_file_bow, to_string=False)
+    # remove_duplicates(processed_file_sequence, to_string=False, chunk_lines = config['batch_size'])
+    shuffle(processed_file_sequence, to_string=False, chunk_lines = config['batch_size'])
+    # df creation takes too much memory for bow
+    # remove_duplicates(processed_file_bow, to_string=False, chunk_lines = config['batch_size'])
+    shuffle(processed_file_bow, to_string=False, chunk_lines = config['batch_size'])
 
 
 if __name__ == '__main__':

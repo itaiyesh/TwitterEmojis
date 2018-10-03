@@ -20,7 +20,7 @@ class Trainer(BaseTrainer):
     """
 
     def __init__(self, model, loss, metrics, resume, config,
-                 data_loader, valid_data_loader=None, train_logger=None):
+                 data_loader, valid_data_loader=None, train_logger=None, vocab_file_path = None, model_config = None):
         super(Trainer, self).__init__(model, loss, metrics, resume, config, train_logger)
         self.config = config
         self.batch_size = data_loader.batch_size
@@ -28,6 +28,11 @@ class Trainer(BaseTrainer):
         self.valid_data_loader = valid_data_loader
         self.valid = True if self.valid_data_loader is not None else False
         self.log_step = int(np.sqrt(self.batch_size))
+
+        # For debug
+        self.vocab = Vocabulary(vocab_file=vocab_file_path, debug=True) if vocab_file_path else None
+        self.model_config = model_config
+        # print(self.model_config)
 
     def _to_tensor(self, data, target):
         with_lengths = False
@@ -62,40 +67,44 @@ class Trainer(BaseTrainer):
         return acc_metrics
 
     # TODO: Remove. this is for debug only
-    # def _predict(self, text, word_to_ix):
-    #
-    #     vocab = Vocabulary(vocab_file=vocab_file, debug = True)
-    #
-    #     config = self.config
-    #     is_bow = config['is_bow']
-    #     padding = config['padding']
-    #
-    #     seq_limit = self.config['sequence_limit']
-    #     if is_bow:
-    #         seq = make_bow_vector(vocab.clean(text), word_to_ix)#.numpy()
-    #     else:
-    #         seq = make_seq_vector(vocab.clean(text), word_to_ix, seq_limit)#.numpy()
-    #     v = np.repeat([seq], self.model.batch_size, axis=0)
-    #     if padding:
-    #         f = np.nonzero(seq)[0][-1] + 1
-    #         l = np.repeat(f, self.model.batch_size, axis=0)
-    #         v = torch.from_numpy(v).long()
-    #         v = v.to(self.gpu)
-    #         # print("batch size")
-    #         # print("v: {} l: {}".format(v.shape,l.shape))
-    #         # print("v: {} l: {}".format(v,l))
-    #
-    #         output = self.model((v, l))
-    #
-    #     else:
-    #         v = torch.from_numpy(v).long()
-    #         v = v.to(self.gpu)
-    #         output = self.model(v)
-    #
-    #     array = output.cpu().data.numpy()
-    #     array = array[0]
-    #     indices = array.argsort()[-3:][::-1]
-    #     return ", ".join([list(idx2emoji.keys())[i] for i in indices])
+    def _predict(self, text, word_to_ix):
+        self.model.eval()
+
+        if not self.vocab:
+            return
+
+        vocab = self.vocab
+
+        config = self.config
+
+        is_bow = 'is_bow' in self.model_config and self.model_config['is_bow']
+        padding = 'pad_input' in self.model_config and self.model_config['pad_input']
+        #TODO: make configurable
+        seq_limit = 56#self.config['sequence_limit']
+
+        if is_bow:
+            seq = make_bow_vector(vocab.clean(text), word_to_ix)
+        else:
+            seq = make_seq_vector(vocab.clean(text), word_to_ix, seq_limit)
+        v = np.repeat([seq], self.model.batch_size, axis=0)
+        if padding:
+            f = np.nonzero(seq)[0][-1] + 1
+            l = np.repeat(f, self.model.batch_size, axis=0)
+            v = torch.from_numpy(v).long()
+            v = v.to(self.gpu)
+
+            output = self.model((v, l))
+
+        else:
+            v = torch.from_numpy(v).long()
+            v = v.to(self.gpu)
+            output = self.model(v)
+
+        array = output.cpu().data.numpy()
+        array = array[0]
+        indices = array.argsort()[-3:][::-1]
+        self.model.train()
+        return ", ".join([list(idx2emoji.keys())[i] for i in indices])
 
     def _train_epoch(self, epoch):
         """
@@ -163,11 +172,15 @@ class Trainer(BaseTrainer):
         texts = ["mmmm....that's very interesting...",
                  "This is shit!!",
                  "This is the shit!!!",
-                 "WOW can't believe it!!"
+                 "WOW can't believe it!!",
+                 "hello cutie!!",
+                 #TODO: Remove these two
+                 "I love cruising with my homies",
+                 "I Love you and now you're just gone..."
                  ]
 
-        # predictions = {text: self._predict(text, word_to_ix) for text in texts}
-        predictions = {}
+        predictions = {text: self._predict(text, word_to_ix) for text in texts}
+        # predictions = {}
 
         log = {
             # Bug: not all batches are same size (i.e. last one.)
@@ -197,15 +210,20 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             for batch_idx, (data, target) in enumerate(self.valid_data_loader):
                 data, target = self._to_tensor(data, target)
+                # print(data)
 
                 self.model.batch_size = len(target)
                 self.model.on_batch()
 
                 output = self.model(data)
+                # print(output)
+                # exit(0)
+
                 loss = self.loss(output, target)
 
                 total_val_loss += loss.item()
                 total_val_metrics += self._eval_metrics(output, target)
+                # print(self._eval_metrics(output, target)[-1])
 
         return {
             'val_loss': total_val_loss / len(self.valid_data_loader),

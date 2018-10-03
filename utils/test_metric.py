@@ -7,19 +7,20 @@ def youtube_acc2(y_input, y_target):
     y_target = np.squeeze(y_target)
 
     happy_keys = ['smiling',
+                  'heart',
                   'laughing',
                   'winking',
                   'angel',
                   'blushing',
                   'liplicking',
-                  'calm_smiling',
+                  'relieved',
                   'inlove',
                   'kissing',
                   'playful_tongue_out',
                   'sun_glasses',
                   'excited_hands_shaking',
                   # 'shock_face',
-                  'hungry_face',
+                  # 'hungry_face',
                   'stary_eyes']
 
     ind = {k: i for i, k in enumerate(idx2emoji.keys())}
@@ -80,8 +81,9 @@ def se0714_acc(y_input, y_target):
                 'angel',
                 'blushing',
                 'liplicking',
-                'calm_smiling',
+                'relieved',
                 'inlove',
+                'heart',
                 'kissing',
                 'playful_tongue_out',
                 'sun_glasses',
@@ -91,6 +93,7 @@ def se0714_acc(y_input, y_target):
 
     sadness_keys = [
         'sad_face',
+        'weary',
         'crying_face',
         'mad_face',
         'exhausted']

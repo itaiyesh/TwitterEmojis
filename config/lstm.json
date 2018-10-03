@@ -4,12 +4,12 @@
   "word2vec_NO": "twitter",
   "_end_of_comment": "These should be part of execution",
 
-  "name": "lstm_1024",
+  "name": "lstm",
   "cuda": true,
   "gpu": 0,
   "data_loader": {
     "data_dir": "datasets/",
-    "batch_size": 1024,
+    "batch_size": 32,
     "shuffle": false,
     "num_workers": 5
   },
@@ -31,10 +31,11 @@
   "metrics": [
     "my_metric",
     "my_metric2",
-    "accuracy"
+    "accuracy",
+    "youtube_acc2_copy"
   ],
   "trainer": {
-    "epochs": 10,
+    "epochs": 15,
     "save_dir": "saved/",
     "save_freq": 1,
     "verbosity": 2,

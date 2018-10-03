@@ -289,7 +289,7 @@ class biLSTMDO(BaseModel):
         x = self.hidden2label(x).squeeze()
         # if self.is_pretrained:
         #     x = self.l2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(x) #dim = 0?
 
 
 class biLSTMDOPretrained(biLSTMDO):
@@ -566,6 +566,7 @@ class SVME(BaseModel):
     def __init__(self, vocab_size, label_size, general_config, model_config, pre_config):
         super(SVME, self).__init__(general_config)
         self.config = general_config
+        self.batch_size = general_config['data_loader']['batch_size']
         self.word_embeddings = nn.Embedding(vocab_size,300)
         self.l1 = nn.Linear(300, label_size)
         self.sequence_limit = pre_config['sequence_limit']
@@ -627,6 +628,7 @@ class SVMEPretrained(SVME):# svm with embedding
     def __init__(self, vocab_size, label_size, run_config, model_config, pre_config, finetune_labels_size):
         super(SVMEPretrained, self).__init__(vocab_size, label_size, run_config, model_config, pre_config)
         self.config = run_config
+        self.batch_size = run_config['data_loader']['batch_size']
 
         # Experiment with freezing different layers
         # self.word_embeddings.weight.requires_grad = True

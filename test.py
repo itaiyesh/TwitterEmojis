@@ -22,7 +22,7 @@ class RangeSampler(Sampler):
         return len(self.range)
 
 # config = trained model to test
-def main(config, models_config, preprocessing_config, test_config, args):
+def main(config, models_config, pre_config, test_config, args):
 
     train_logger = Logger()
 
@@ -38,24 +38,24 @@ def main(config, models_config, preprocessing_config, test_config, args):
     data_sampler = RangeSampler(n)
     validation_sampler = RangeSampler(n)
 
-    data_loader = TweetsDataLoader(dataset,
-                                   sampler=data_sampler,
-                                   batch_size=config['data_loader']['batch_size'],
-                                   num_workers=config['data_loader']['num_workers'],
-                                   model_config=model_config)
-
-    # TODO: I think the sampler isnt working...
-    validation_data_loader = TweetsDataLoader(dataset,
-                                              sampler=validation_sampler,
-                                              batch_size=config['data_loader']['batch_size'],
-                                              num_workers=config['data_loader']['num_workers'],
-                                              model_config=model_config)
+    #TODO: just load model
+    # data_loader = TweetsDataLoader(dataset,
+    #                                sampler=data_sampler,
+    #                                batch_size=config['data_loader']['batch_size'],
+    #                                num_workers=config['data_loader']['num_workers'],
+    #                                model_config=model_config)
+    #
+    # # TODO: I think the sampler isnt working...
+    # validation_data_loader = TweetsDataLoader(dataset,
+    #                                           sampler=validation_sampler,
+    #                                           batch_size=config['data_loader']['batch_size'],
+    #                                           num_workers=config['data_loader']['num_workers'],
+    #                                           model_config=model_config)
 
     # vocab_file = h5py.File(preprocessing_config['vocab_file'], 'r', libver='latest', swmr=True)
-    labels_file = h5py.File(preprocessing_config['labels_file'], 'r', libver='latest', swmr=True)
+    labels_file = h5py.File(pre_config['labels_file'], 'r', libver='latest', swmr=True)
 
-    # TODO word_to_ix should be inside vocabulary
-    vocab_file = preprocessing_config['vocab_file']
+    vocab_file = pre_config['vocab_file']
     vocab = Vocabulary(vocab_file=vocab_file)
     word_to_ix = vocab.word_to_ix
 
@@ -66,25 +66,37 @@ def main(config, models_config, preprocessing_config, test_config, args):
     if 'is_traditional' in config:
         raise Exception("Traditional trainers are not supported for testing.")
 
-    model = eval(model_name)(len(word_to_ix), len(labels_file), config, models_config['models'][model_name],preprocessing_config)
+    model = eval(model_name)(len(word_to_ix), len(labels_file), config, models_config['models'][model_name], pre_config)
 
-    trainer = Trainer(model, loss, metrics,
-                      resume=resume,
-                      config=config,
-                      data_loader=data_loader,
-                      valid_data_loader=validation_data_loader,
-                      train_logger=train_logger)
+    load_model(model,resume)
 
-    model = trainer.model
+    model.cuda()
+
+    model.summary()
+    # exit(0)
+    # trainer = Trainer(model, loss, metrics,
+    #                   resume=resume,
+    #                   config=config,
+    #                   data_loader=data_loader,
+    #                   valid_data_loader=validation_data_loader,
+    #                   train_logger=train_logger)
+    #
+    #
+    # model = trainer.model
+
+    model.eval()
 
     model.summary()
 
+    logging.info("Testing some home made input")
 
+    # test_custom_input(model, vocab, test_config,model_config, pre_config, interactive= True)
 
+    logging.info("Testing known datasets")
     for test_name, test in test_config['test_cases'].items():
         logging.info("Running test: {}".format(test_name))
 
-        test_dataset = TestDataset(model_config, preprocessing_config, test['data'], vocab=vocab)
+        test_dataset = TestDataset(model_config, pre_config, test['data'], vocab=vocab)
 
         # 2nd test -  rigid
 
@@ -97,18 +109,18 @@ def main(config, models_config, preprocessing_config, test_config, args):
 
         # Runs 1 time
 
-        Tester(model, eval(test['metric']), metrics, test_config['tester'], data_loader=test_loader).test()
+        # Tester(model, eval(test['metric']), metrics, test_config['tester'], data_loader=test_loader).test()
 
 
         # 1st test - fine tune
         if 'finetune_model' in model_config:
             finetune_model_name = model_config['finetune_model']
             finetune_model =  eval(finetune_model_name)(len(word_to_ix),
-                                               len(labels_file),
-                                               config,
-                                               models_config['models'][model_name],
-                                                        preprocessing_config,
-                                               2)
+                                                        len(labels_file),
+                                                        config,
+                                                        models_config['models'][model_name],
+                                                        pre_config,
+                                                        2)
             logging.info("Loading weights from {}".format(resume))
             logging.info("Weights for LSTM are frozen!")
             finetune_model.load_pretrained(model)
@@ -130,17 +142,11 @@ def main(config, models_config, preprocessing_config, test_config, args):
                                          num_workers=config['data_loader']['num_workers'],
                                          model_config=model_config)
 
-            # print("Len train loader: {}".format(len(train_loader)))
-            # print("Len train test: {}".format(len(test_loader)))
-
-            # pretrained_model = SVMEPretrained(len(word_to_ix), len(labels_file), test_config, test_config['models'][model_name])
-            # pretrained_model = biLSTMDOPretrained(len(word_to_ix), len(labels_file), test_config,
-            #                                       test_config['models'][model_name])
-
 
             finetune_model.summary()
 
-            trainer = Trainer(finetune_model, loss, metrics,
+            # Remember we've added additional layer, so accuracy is the simple one.
+            trainer = Trainer(finetune_model, loss, [accuracy],
                           resume=False,
                           config=test_config,
                           data_loader=train_loader,
@@ -149,40 +155,62 @@ def main(config, models_config, preprocessing_config, test_config, args):
 
             trainer.train()
 
-        # # end
-        # exit(0)
 
-        # test_dataset = TestDataset(model_config, config, 'datasets/tests/ss_youtube.pickle', vocab=Vocabulary(debug=True),
-        #                            word_to_ix=word_to_ix)
-        # test_sampler = RangeSampler(list(range(0, len(test_dataset))))  # all
-        # youtube_dataloader = TestDataLoader(dataset=test_dataset
-        #                                     , batch_size=config['data_loader']['batch_size'],
-        #                                     sampler=test_sampler,
-        #                                     num_workers=config['data_loader']['num_workers'],
-        #                                     model_config=model_config)
-        #
-        # test_dataset = TestDataset(model_config, config, 'datasets/tests/ss_twitter.pickle', vocab=Vocabulary(debug=True),
-        #                            word_to_ix=word_to_ix)
-        # test_sampler = RangeSampler(list(range(0, len(test_dataset))))  # all
-        # twitter_dataloader = TestDataLoader(dataset=test_dataset
-        #                                     , batch_size=config['data_loader']['batch_size'],
-        #                                     sampler=test_sampler,
-        #                                     num_workers=config['data_loader']['num_workers'],
-        #                                     model_config=model_config)
-        #
-        # test_dataset = TestDataset(model_config, config, 'datasets/tests/se0714.pickle', vocab=Vocabulary(debug=True),
-        #                            word_to_ix=word_to_ix)
-        # test_sampler = RangeSampler(list(range(0, len(test_dataset))))  # all
-        # se0714_dataloader = TestDataLoader(dataset=test_dataset
-        #                                    , batch_size=config['data_loader']['batch_size'],
-        #                                    sampler=test_sampler,
-        #                                    num_workers=config['data_loader']['num_workers'],
-        #                                    model_config=model_config)
-        #
-        # Tester(model, youtube_acc2, metrics, config, data_loader=youtube_dataloader).test()
-        # Tester(model, youtube_acc2, metrics, config, data_loader=twitter_dataloader).test()
-        #
-        # # Tester(model, se0714_acc, metrics, config, data_loader = se0714_dataloader).test()
+def test_custom_input(model,vocab,test_config,model_config,pre_config,interactive= False):
+    # TODO: Remove. this is for debug only
+    logging.info("Testing some sentences...")
+    texts = ["mmmm....that's very interesting...",
+             "This is shit!!",
+             "This is the shit!!!",
+             "WOW can't believe it!!",
+             "hello cutie!!",
+             # TODO: Remove these two
+             "I love cruising with my homies",
+             "I Love you and now you're just gone..."
+             ]
+    for text in texts:
+        logging.info("{}: {}".format(text, predict(model, vocab, test_config,model_config, pre_config, text)))
+
+    if interactive:
+        text = ""
+        logging.info("Input text, 'bye' to exit.")
+        while text != 'bye':
+            text = input()
+            logging.info(predict(model, vocab, test_config,model_config, pre_config, text))
+
+def predict( model, vocab, test_config, model_config, pre_config, text):
+    gpu = torch.device('cuda:' + str(test_config['gpu']))
+
+    is_bow = 'is_bow' in model_config and model_config['is_bow']
+    padding = 'pad_input' in model_config and model_config['pad_input']
+    #TODO: make configurable
+    seq_limit = pre_config['sequence_limit']
+
+    if is_bow:
+        seq = make_bow_vector(vocab.clean(text), vocab.word_to_ix)
+    else:
+        seq = make_seq_vector(vocab.clean(text),  vocab.word_to_ix, seq_limit)
+    v = np.repeat([seq], model.batch_size, axis=0)
+    if padding:
+        f = np.nonzero(seq)[0][-1] + 1
+        l = np.repeat(f, model.batch_size, axis=0)
+        v = torch.from_numpy(v).long()
+        v = v.to(gpu)
+        v.requires_grad = False
+
+        output = model((v, l))
+
+    else:
+        v = torch.from_numpy(v).long()
+        v = v.to(gpu)
+        v.requires_grad = False
+
+        output = model(v)
+
+    array = output.cpu().data.numpy()
+    array = array[0]
+    indices = array.argsort()[-3:][::-1]
+    return ", ".join([list(idx2emoji.keys())[i] for i in indices])
 
 
 

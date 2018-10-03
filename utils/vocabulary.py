@@ -82,8 +82,9 @@ class Vocabulary():
 
 
             # First approach - doesnt shuffle indices. Partitions sampling to continuous chunks.
-            vocab_samples = np.concatenate((samples[:int(vocab_sample_limit/2)],samples[-int(vocab_sample_limit/2):]), axis=0)
+            # vocab_samples = np.concatenate((samples[:int(vocab_sample_limit/2)],samples[-int(vocab_sample_limit/2):]), axis=0)
 
+            # Second approach - shuffle. years...
             # This approach first shuffles indices then retrieves tweets
             # logging.info("Generating random indices for tweets.")
             # indices =random.sample(list(range(0, len(samples))),vocab_sample_limit)
@@ -92,13 +93,26 @@ class Vocabulary():
             # logging.info("Retrieving {} random tweets...".format(vocab_sample_limit))
             # vocab_samples = samples[indices]
 
-            # This approach is too slow.
-            # vocab_samples = random.sample(list(samples), vocab_sample_limit)
-        else:
-            vocab_samples = samples
+            chunk_size = 1024# take from preconfig 'fetch_and_write_size...'
+            logging.info("Reading random chunks of size {}".format(chunk_size))
+            chunks = int(np.floor(vocab_sample_limit / chunk_size))
+            indices = random.sample(list(range(0,int(np.floor(len(samples)/chunk_size)))), chunks)
+            # vocab_samples = samples[:1] #
+            for i in tqdm(indices, total=len(indices)):
+                #TODO: Allocate ahead of time
+                for sample in samples[i*chunk_size:(i+1)*chunk_size]:
+                    all_sentences.append(self.clean(sample[0]))
+                # vocab_samples = np.concatenate([vocab_samples, samples[i*chunk_size:(i+1)*chunk_size]])
 
-        for sample in tqdm(vocab_samples):
-            all_sentences.append(self.clean(sample[0]))  # for some reason, we need this indexing
+        else:
+            for sample in samples:
+                all_sentences.append(self.clean(sample[0]))  # for some reason, we need this indexing
+            # vocab_samples = samples
+
+        # logging.info("Cleaning sentences etc...")
+        # #TODO: tmp hdf5 file to hold words. memory limit etc...
+        # for sample in tqdm(vocab_samples):
+        #     all_sentences.append(self.clean(sample[0]))  # for some reason, we need this indexing
 
         logger.info("Calculating {:.1f}% percentile of lengths".format(sequence_limit_percentile))
         sentence_tokens = [sentence.split() for sentence in all_sentences]
@@ -113,7 +127,7 @@ class Vocabulary():
 
         # Method 0
         sentences = [sentence.split() for sentence in all_sentences]
-        model = gensim.models.Word2Vec(sentences, min_count=5, workers=config['num_workers'])
+        model = gensim.models.Word2Vec(sentences, min_count=5, workers=config['num_workers'], sg=1) #sg=1 for skipgram
 
         words = []
         norms = []
@@ -131,6 +145,9 @@ class Vocabulary():
         logger.info("Running TF-IDF on collected words...")
 
         # Method 1
+        # TF-IDF scoring of weight, adapted from
+        # http://www.ultravioletanalytics.com/blog/tf-idf-basics-with-pandas-scikit-
+        # More info on sklearn.feature_extraction.text.TfidfTransformer
         tvec = TfidfVectorizer(min_df=0.0, max_df=.9, stop_words='english', ngram_range=(1, 1))
         tvec_weights = tvec.fit_transform(all_sentences)
         weights = np.asarray(tvec_weights.mean(axis=0)).ravel().tolist()
@@ -270,6 +287,10 @@ class Vocabulary():
         # tweet_text = ' '.join(tokenize(tweet_text))
         words = []
         for word in tokenize(tweet_text):
+            #TODO: Test test test
+            if word.startswith("#") or word.startswith("@"):
+                continue
+
             word = self.smart_cap(word)
             if word in self.contraction:
                 words += self.contraction[word].split()

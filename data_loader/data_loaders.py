@@ -132,43 +132,45 @@ class TestDataLoader(DataLoader):
         lengths = list(lengths)
 
         return [(texts, lengths), labels]
-        # TODO: Remove
-        # TODO: Once we have them as number, read it like this!
-        texts = samples
-        # print(texts)
-        labels = torch.from_numpy(labels).long()  # .cuda()
-        # print(texts)
-        lengths = []
-        # TODO: init with <pad>!!!
-        # look for first argument of pad
-        for i in range(0, len(samples)):
-            sample = samples[i]
-            l = np.nonzero(sample)[0]  # sample.nonzero()[-1]#(sample!=0).argmax(axis=0)#.argmax(sample == 0)
-            if len(l) > 0:
-                # TODO: if setnence has no words this should be an error!
-                l = l[-1] + 1
-            else:
-                l = len(sample)
-            # print("Sentence: {} (Len: {})".format(sample, l))
-            l = max(l, 1)
-            # print("Sentence: {} (Len: {})".format(sample, l))
-
-            # print("Max: {}".format(l))
-            lengths.append(l)
-
-        joined = list(zip(lengths, texts, labels))
-        # print("joined: {}".format(joined))
-        joined.sort(key=lambda x: x[0], reverse=True)
-        lengths, texts, labels = zip(*joined)
-
-        texts = torch.from_numpy(np.asarray(texts)).long()  # .cuda()
-        lengths = list(lengths)
-        # print(lengths)
-        # print(texts.shape)
-        return [(texts, lengths), labels]
+        # # TODO: Remove
+        # # TODO: Once we have them as number, read it like this!
+        # texts = samples
+        # # print(texts)
+        # labels = torch.from_numpy(labels).long()  # .cuda()
+        # # print(texts)
+        # lengths = []
+        # # TODO: init with <pad>!!!
+        # # look for first argument of pad
+        # for i in range(0, len(samples)):
+        #     sample = samples[i]
+        #     l = np.nonzero(sample)[0]  # sample.nonzero()[-1]#(sample!=0).argmax(axis=0)#.argmax(sample == 0)
+        #     if len(l) > 0:
+        #         # TODO: if setnence has no words this should be an error!
+        #         l = l[-1] + 1
+        #     else:
+        #         l = len(sample)
+        #     # print("Sentence: {} (Len: {})".format(sample, l))
+        #     l = max(l, 1)
+        #     # print("Sentence: {} (Len: {})".format(sample, l))
+        #
+        #     # print("Max: {}".format(l))
+        #     lengths.append(l)
+        #
+        # joined = list(zip(lengths, texts, labels))
+        # # print("joined: {}".format(joined))
+        # joined.sort(key=lambda x: x[0], reverse=True)
+        # lengths, texts, labels = zip(*joined)
+        #
+        # texts = torch.from_numpy(np.asarray(texts)).long()  # .cuda()
+        # lengths = list(lengths)
+        # # print(lengths)
+        # # print(texts.shape)
+        # return [(texts, lengths), labels]
 
     def collate_no_pad(self, samples, labels):
         # TODO: Once we have them as number, read it like this!
+        # print("NO PAD")
+
         texts = torch.from_numpy(np.array(samples)).long()
         labels = torch.from_numpy(labels).long()
         # print(texts)

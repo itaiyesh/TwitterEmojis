@@ -50,21 +50,25 @@ class Tester:
 
     def _test(self):
 
-        # self.model.eval()
+        self.model.eval()
         total_accuracy = 0
         total_val_metrics = np.zeros(len(self.metrics))
         with torch.no_grad():
             for batch_idx, (data, target) in enumerate(self.data_loader):
+                # Sunday
                 data, target = self._to_tensor(data, target)
-
+                # print(data)
                 self.model.batch_size = len(target)
-                # self.model.on_batch()
+                self.model.on_batch()
 
                 output = self.model(data)
+                # print(output)
+                # exit(0)
                 accuracy = self.accuracy(output, target)
-
+                # print(accuracy)
                 total_accuracy += accuracy#.item()
                 # total_val_metrics += self._eval_metrics(output, target)
+
 
         return {
             'test_accuracy': total_accuracy / len(self.data_loader)

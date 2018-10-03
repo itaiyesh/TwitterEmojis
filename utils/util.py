@@ -74,3 +74,26 @@ def parse_config():
     logger.info('loaded {}'.format(args.test_config))
 
     return config,models_config, preprocessing_config,test_config, args
+
+
+def load_model(model, resume_path):
+    """
+    Resume from saved checkpoints
+
+    :param resume_path: Checkpoint path to be resumed
+    """
+    logger.info("Loading checkpoint: {} ...".format(resume_path))
+    checkpoint = torch.load(resume_path)
+    start_epoch = checkpoint['epoch'] + 1
+    monitor_best = checkpoint['monitor_best']
+    model.load_state_dict(checkpoint['state_dict'])
+    # self.optimizer.load_state_dict(checkpoint['optimizer'])
+    # if self.with_cuda:
+    #     for state in self.optimizer.state.values():
+    #         for k, v in state.items():
+    #             if isinstance(v, torch.Tensor):
+    #                 state[k] = v.cuda(self.gpu)
+    train_logger = checkpoint['logger']
+    config = checkpoint['config']
+    # self.config['data_loader']['batch_size'] =32
+    logger.info("Checkpoint '{}' (epoch {}) loaded".format(resume_path, start_epoch))
