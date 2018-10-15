@@ -181,77 +181,91 @@ def process_samples(config):
         short_texts_count = 0
         long_texts_count = 0
         satisfied_class_count = 0
-        samples_iterate = tqdm(samples, total=len(samples))
         all_classes_satisfied = False
         multi_label_count = 0
 
-        for sample in samples_iterate:
-            iteration_count += 1
+        # Since Database is not shuffled (i.e. all 'fire' emojis are at the end,) retrieving via shuffling
+        # will satisfy balanced class sampling faster.
+        chunk_size = 1024  # take from preconfig 'fetch_and_write_size...'
+        logging.info("Reading random chunks of size {}".format(chunk_size))
+        chunks = int(np.floor(len(samples) / chunk_size))
+        indices = random.sample(list(range(0, int(np.floor(len(samples) / chunk_size)))), chunks)
+        chunks_iterate = tqdm(indices, total=len(indices))
 
+        for chunk_index in chunks_iterate:
+            # TODO: Allocate ahead of time
             if all_classes_satisfied:
                 break
 
-            raw_text = sample[0]
-            # TODO: Use clean from previous step
-            # TODO: Remove words shorter than 1/2..
-            # TODO: Put outside loop!!
-            text = vocab.clean(raw_text)  # for some reason, we need this indexing
-            text_len = len(text.split())
-            if text_len < 2:
-                short_texts_count += 1
-                continue
+            # samples_iterate = samples[chunk_index * chunk_size:(chunk_index + 1) * chunk_size]
 
-            if text_len > sequence_limit:
-                long_texts_count += 1
-                continue
+            for sample in samples[chunk_index * chunk_size:(chunk_index + 1) * chunk_size]:
+                iteration_count += 1
 
-            # label = make_unique_target_for_maximal_class(raw_text)
-            targets = make_targets_for_classes(raw_text)
-            if len(targets) > 1:
-                multi_label_count += 1
+                if all_classes_satisfied:
+                    break
 
-            for label in targets:
-
-                if label is None:
-                    # Bad tweet
+                raw_text = sample[0]
+                # TODO: Use clean from previous step
+                # TODO: Remove words shorter than 1/2..
+                # TODO: Put outside loop!!
+                text = vocab.clean(raw_text)  # for some reason, we need this indexing
+                text_len = len(text.split())
+                if text_len < 2:
+                    short_texts_count += 1
                     continue
 
-                if class_limit:
-                    if class_count[label] == 0:
-                        if len(np.nonzero(class_count)[0]) < 1:
-                            # Finished Gathering all samples
-                            logging.info("All classes have sufficient samples. Breaking")
-                            all_classes_satisfied = True
-                            break
-                        else:
-                            # Finished gathering samples for this class
-                            continue
-                    else:
-                        class_count[label] -= 1
+                if text_len > sequence_limit:
+                    long_texts_count += 1
+                    continue
+
+                # label = make_unique_target_for_maximal_class(raw_text)
+                targets = make_targets_for_classes(raw_text)
+                if len(targets) > 1:
+                    multi_label_count += 1
+
+                for label in targets:
+
+                    if label is None:
+                        # Bad tweet
+                        continue
+
+                    if class_limit:
                         if class_count[label] == 0:
-                            satisfied_class_count += 1
-                            if len(idx2emoji) - satisfied_class_count < 4:
-                                samples_iterate.set_description(
-                                    "{}/{} classes satisfied: Missing {}".format(satisfied_class_count, len(idx2emoji),
-                                                                                 ','.join(
-                                                                                     [list(idx2emoji.keys())[
-                                                                                          class_index]
-                                                                                      for class_index in
-                                                                                      np.nonzero(class_count)[0]])))
+                            if len(np.nonzero(class_count)[0]) < 1:
+                                # Finished Gathering all samples
+                                logging.info("All classes have sufficient samples. Breaking")
+                                all_classes_satisfied = True
+                                break
                             else:
-                                samples_iterate.set_description(
-                                    "{}/{} classes satisfied".format(satisfied_class_count, len(idx2emoji)))
+                                # Finished gathering samples for this class
+                                continue
+                        else:
+                            class_count[label] -= 1
+                            if class_count[label] == 0:
+                                satisfied_class_count += 1
+                                if len(idx2emoji) - satisfied_class_count < 9:
+                                    chunks_iterate.set_description(
+                                        "{}/{} classes satisfied: Missing {}".format(satisfied_class_count, len(idx2emoji),
+                                                                                     ','.join(
+                                                                                         [list(idx2emoji.keys())[
+                                                                                              class_index]
+                                                                                          for class_index in
+                                                                                          np.nonzero(class_count)[0]])))
+                                else:
+                                    chunks_iterate.set_description(
+                                        "{}/{} classes satisfied".format(satisfied_class_count, len(idx2emoji)))
 
-                # pr.enable()
+                    # pr.enable()
 
-                bow_samples_dataset_buffer.add(make_bow_vector(text, vocab.word_to_ix))
-                bow_labels_dataset_buffer.add(label)
+                    bow_samples_dataset_buffer.add(make_bow_vector(text, vocab.word_to_ix))
+                    bow_labels_dataset_buffer.add(label)
 
-                seq_samples_dataset_buffer.add(make_seq_vector(text, vocab.word_to_ix, sequence_limit))
-                seq_labels_dataset_buffer.add(label)
+                    seq_samples_dataset_buffer.add(make_seq_vector(text, vocab.word_to_ix, sequence_limit))
+                    seq_labels_dataset_buffer.add(label)
 
 
-        samples_iterate.close()
+        chunks_iterate.close()
 
         total_samples = len(seq_samples_dataset)
 
@@ -629,8 +643,8 @@ def prepare_data(config):
 
     processed_file_sequence = config['processed_sequence']
     processed_file_bow = config['processed_bow']
-
-    # remove_duplicates(processed_file_sequence, to_string=False, chunk_lines = config['batch_size'])
+    #
+    # # remove_duplicates(processed_file_sequence, to_string=False, chunk_lines = config['batch_size'])
     shuffle(processed_file_sequence, to_string=False, chunk_lines = config['batch_size'])
     # df creation takes too much memory for bow
     # remove_duplicates(processed_file_bow, to_string=False, chunk_lines = config['batch_size'])

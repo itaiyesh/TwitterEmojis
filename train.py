@@ -39,7 +39,7 @@ def main(config,models_config,preprocessing_config, args):
     validation_sampler = RangeSampler(n[:validation_size])
 
     #TODO: Remove
-    # data_sampler = RangeSampler(n[:100])
+    # data_sampler = RangeSampler(n[:1000])
     # validation_sampler = RangeSampler(n[-1002:])
 
     vocab_file_path = preprocessing_config['vocab_file']
@@ -112,6 +112,6 @@ if __name__ == '__main__':
     #         print(word)
     #         exit(0)
     # exit(0)
-    # prepare_data(config)
+    # prepare_data(preprocessing_config)
 
     main(config,models_config,preprocessing_config, args)

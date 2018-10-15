@@ -34,6 +34,20 @@ class Trainer(BaseTrainer):
         self.model_config = model_config
         # print(self.model_config)
 
+
+        #For graphs
+        # TODO: Load from file on resume
+        # self.loss_per_iteration_file = os.path.join(self.checkpoint_dir, 'loss_per_iteration.txt')
+        # self.iteration_file = os.path.join(self.checkpoint_dir, 'iteration.txt')
+        #
+        # self.loss_per_iteration_array = []
+        # self.iteration_array = []
+
+        self.loss_per_iteration = os.path.join(self.checkpoint_dir, 'loss_per_iteration.pickle')
+        self.df = pd.DataFrame(columns=['iteration', 'loss'])
+
+        self.val_loss_per_iteration = os.path.join(self.checkpoint_dir, 'val_loss_per_iteration.pickle')
+        self.val_df = pd.DataFrame(columns=['iteration', 'loss'])
     def _to_tensor(self, data, target):
         with_lengths = False
         # Checking whether data is a tuple of data+lengths (for padding)
@@ -68,6 +82,8 @@ class Trainer(BaseTrainer):
 
     # TODO: Remove. this is for debug only
     def _predict(self, text, word_to_ix):
+        self.model.on_batch()
+
         self.model.eval()
 
         if not self.vocab:
@@ -104,7 +120,9 @@ class Trainer(BaseTrainer):
         array = array[0]
         indices = array.argsort()[-3:][::-1]
         self.model.train()
-        return ", ".join([list(idx2emoji.keys())[i] for i in indices])
+        return ", ".join([list(idx2emoji.values())[i].split("|")[0] for i in indices])
+
+        # return ", ".join([list(idx2emoji.keys())[i] for i in indices])
 
     def _train_epoch(self, epoch):
         """
@@ -134,7 +152,8 @@ class Trainer(BaseTrainer):
             for ds in h5f.keys():
                 word_to_ix[ds] = int(h5f[ds].value)
 
-        for batch_idx, (data, target) in tqdm(enumerate(self.data_loader)):
+        average_loss = 0
+        for batch_idx, (data, target) in tqdm(enumerate(self.data_loader), total = len(self.data_loader)):
             data, target = self._to_tensor(data, target)
             self.optimizer.zero_grad()
 
@@ -145,6 +164,7 @@ class Trainer(BaseTrainer):
 
 
             loss = self.loss(output, target)
+
 
             # MY addition #TODO:Remove? it works without
             # loss = torch.autograd.Variable(loss, requires_grad = True)
@@ -160,8 +180,16 @@ class Trainer(BaseTrainer):
             total_loss += loss.item()
             total_metrics += self._eval_metrics(output, target)
 
+            average_loss+=loss.item()
+
+            if batch_idx % 1000 == 0 and batch_idx!=0:
+                index = (epoch - 1) * len(self.data_loader) + batch_idx
+                self.df.loc[len(self.df)] = [index, average_loss/1000]
+                self.df.to_pickle(self.loss_per_iteration)
+                average_loss = 0
+
             if self.verbosity >= 2 and batch_idx % self.log_step == 0:
-                self.logger.info('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
+               self.logger.info('Train Epoch: {} [{}/{} ({:.0f}%)] Loss: {:.6f}'.format(
                     epoch,
                     batch_idx * self.data_loader.batch_size,
                     len(self.data_loader) * self.data_loader.batch_size,
@@ -191,6 +219,10 @@ class Trainer(BaseTrainer):
 
         if self.valid:
             val_log = self._valid_epoch()
+            # Record val loss
+            iteration = epoch * len(self.data_loader)
+            self.val_df.loc[len(self.val_df)] = [iteration, val_log['val_loss']]
+            self.val_df.to_pickle(self.val_loss_per_iteration)
             log = {**log, **val_log, **predictions}
 
         return log

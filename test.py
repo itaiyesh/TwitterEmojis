@@ -108,7 +108,7 @@ def main(config, models_config, pre_config, test_config, args):
                                             model_config=model_config)
 
         # Runs 1 time
-
+        # Test using bins
         # Tester(model, eval(test['metric']), metrics, test_config['tester'], data_loader=test_loader).test()
 
 
@@ -128,10 +128,19 @@ def main(config, models_config, pre_config, test_config, args):
             n = list(range(0, len(test_dataset)))
 
             #TODO: Better sample randomly here!
-            train_sampler = RangeSampler(n[:test['finetune_n_train']])
-            test_sampler = RangeSampler(n[test['finetune_n_train']:])
+            if "test" not in test:
+                train_sampler = RangeSampler(n[:test['finetune_n_train']])
+                test_sampler = RangeSampler(n[test['finetune_n_train']:])
+                train_dataset = test_dataset
+            else:
+                train_dataset = TestDataset(model_config, pre_config, test['data'], vocab=vocab)
+                train_sampler = RangeSampler(list(range(0, len(train_dataset))))
 
-            train_loader = TestDataLoader(dataset=test_dataset
+                test_dataset = TestDataset(model_config, pre_config, test['test'], vocab=vocab)
+                test_sampler = RangeSampler(list(range(0, len(train_dataset))))
+
+
+            train_loader = TestDataLoader(dataset=train_dataset
                                           , batch_size=8,#config['data_loader']['batch_size'],
                                           sampler=train_sampler,
                                           num_workers=config['data_loader']['num_workers'],
@@ -196,21 +205,21 @@ def predict( model, vocab, test_config, model_config, pre_config, text):
         l = np.repeat(f, model.batch_size, axis=0)
         v = torch.from_numpy(v).long()
         v = v.to(gpu)
-        v.requires_grad = False
-
+        model.on_batch()
+        # v.requires_grad = False
         output = model((v, l))
 
     else:
         v = torch.from_numpy(v).long()
         v = v.to(gpu)
-        v.requires_grad = False
-
+        # v.requires_grad = False
+        model.on_batch()
         output = model(v)
 
     array = output.cpu().data.numpy()
     array = array[0]
     indices = array.argsort()[-3:][::-1]
-    return ", ".join([list(idx2emoji.keys())[i] for i in indices])
+    return ", ".join([idx2emoji[list(idx2emoji.keys())[i]].split("|")[0] for i in indices])
 
 
 

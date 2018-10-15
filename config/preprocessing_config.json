@@ -6,8 +6,8 @@
   "sampling": {
     "collect_data": false,
     "_comment": "use sample_limit or class_limit here",
-    "vocab_sample_limit": 1000000,
-    "class_limit": 5000,
+    "vocab_sample_limit": 10000000,
+    "class_limit": 240000,
     "sample_limit_NO": 27000000
   },
   "mongo": {

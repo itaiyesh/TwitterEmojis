@@ -4,6 +4,9 @@ from utils import *
 
 # comparing sum of positive labels to rest
 def youtube_acc2_copy(y_input, y_target):
+    #TODO: Remove
+    return 0
+
     y_target = np.squeeze(y_target)
 
     # happy_keys = ['smiling',

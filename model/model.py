@@ -229,8 +229,8 @@ class biLSTMDO(BaseModel):
         self.use_gpu = True
 
         if 'word2vec' in run_config:
-            w2v_file = run_config['word2vec_files'][run_config['word2vec']]
-            vocab_file = h5py.File(run_config['vocab_file'], 'r', libver='latest', swmr=True)
+            w2v_file = pre_config['word2vec_files'][run_config['word2vec']]
+            vocab_file = h5py.File(pre_config['vocab_file'], 'r', libver='latest', swmr=True)
             self.word_embeddings, embed_dim = generate_embeddings(vocab_size,w2v_file, vocab_file)
         else:
             embed_dim = model_config['embedding_dim']

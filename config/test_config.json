@@ -2,8 +2,29 @@
   "name": "saved_tests",
   "cuda": true,
   "gpu": 0,
+      "amazon_review": {
+        "data": "datasets/tests/amazon_review_train.csv",
+        "test": "datasets/tests/amazon_review_test.csv",
+        "metric": "youtube_acc2"
+    },
+
   "test_cases": {
 
+    "imdb_labelled": {
+        "data": "datasets/tests/imdb_labelled.txt",
+        "metric": "youtube_acc2",
+        "finetune_n_train": 250
+    },
+    "yelp_labelled": {
+        "data": "datasets/tests/yelp_labelled.txt",
+        "metric": "youtube_acc2",
+        "finetune_n_train": 250
+    },
+    "amazon_cells_labelled": {
+        "data": "datasets/tests/amazon_cells_labelled.txt",
+        "metric": "youtube_acc2",
+        "finetune_n_train": 250
+    },
     "ss_youtube": {
         "data": "datasets/tests/ss_youtube.pickle",
         "metric": "youtube_acc2",
@@ -29,11 +50,11 @@
   "lr_scheduler_type": "ExponentialLR",
   "lr_scheduler_freq": 1,
   "lr_scheduler": {
-    "gamma": 0.6
+    "gamma": 0.8
   },
   "optimizer_type": "Adam",
   "optimizer": {
-    "lr": 0.002,
+    "lr": 0.001,
     "weight_decay": 0
   },
   "loss": "nlll",

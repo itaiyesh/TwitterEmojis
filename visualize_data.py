@@ -17,8 +17,22 @@ from sklearn.preprocessing import MinMaxScaler
 from bokeh.models import ColumnDataSource, Range1d, LabelSet, Label
 def norm(vec):
     return vec/np.linalg.norm(vec)
+def generate_loss_graphs():
+    df = pd.read_pickle('saved/lstm/loss_per_iteration.pickle')
+    # df_w2v = pd.read_pickle('saved/lstm_w2v/loss_per_iteration.pickle')
+    # df_adagrad = pd.read_pickle('saved/lstm_adagrad/loss_per_iteration.pickle')
+
+    f, ax = plt.subplots()
+    plt.plot(df['iteration'], df['loss'], color='b')
+    # plt.plot(df_w2v['iteration'], df_w2v['loss'], color='r')
+    # plt.plot(df_adagrad['iteration'], df_adagrad['loss'], color='r')
+
+    plt.legend('HELLO', ncol=2, loc='upper left')
+    plt.show()
+    exit(0)
 
 def main(config,models_config, preprocessing_config, args):
+
 
     resume = args.resume
 
@@ -31,6 +45,9 @@ def main(config,models_config, preprocessing_config, args):
     labels_file_path = preprocessing_config['labels_file']
     vocab_file = h5py.File(vocab_file_path, 'r', libver='latest', swmr=True)
     labels_file = h5py.File(labels_file_path, 'r', libver='latest', swmr=True)
+
+
+    # generate_loss_graphs()
 
     data_loader = TweetsDataLoader(None,
                              sampler=None,
@@ -49,6 +66,11 @@ def main(config,models_config, preprocessing_config, args):
     model = trainer.model
 
     model.eval()
+
+    # loss_per_iteration = np.loadtxt(os.path.join(model.config['trainer']['save_dir'],'loss_per_iteration.txt'))
+    # plt.plot(loss_per_iteration)
+    # plt.legend('ABCDEF', ncol=2, loc='upper left')
+    # exit(0)
 
     # word_to_ix = {}
     embeddings = []
@@ -108,15 +130,16 @@ def main(config,models_config, preprocessing_config, args):
         for i, emotion in enumerate(idx2emoji.keys()):
             b.add(emotion, model.reverse(i)[0])
 
-        tests = [['inlove', 'kissing', 'sick_face'],
-                 ['heart', 'inlove', 'straight_face'],
-                 ['devil_face', 'angel', 'inlove'],
-                 ['sad_face','crying_face', 'smiling'],
-                 ['inlove', 'liplicking', 'sad_face']]
-
-        for i, test in enumerate(tests):
-            print("{} is to {} as {} is to {}".format(test[0], test[1],
-                                                      b.most_similar(positive=test[:2], negative=test[2:], topn=3), test[2]))
+        #TODO: re-activate with words that are in vocab
+        # tests = [['inlove', 'kissing', 'sick_face'],
+        #          ['heart', 'inlove', 'straight_face'],
+        #          ['devil_face', 'angel', 'inlove'],
+        #          ['sad_face','crying_face', 'smiling'],
+        #          ['inlove', 'liplicking', 'sad_face']]
+        #
+        # for i, test in enumerate(tests):
+        #     print("{} is to {} as {} is to {}".format(test[0], test[1],
+        #                                               b.most_similar(positive=test[:2], negative=test[2:], topn=3), test[2]))
 
         emojis = []
         emoji_vecs = []
@@ -369,5 +392,8 @@ class MyEncoder(json.JSONEncoder):
             return super(MyEncoder, self).default(obj)
 
 if __name__ == '__main__':
+    generate_loss_graphs()
+
     config, models_config, preprocessing_config, test_config, args = parse_config()
+
     main(config,models_config,preprocessing_config, args)
